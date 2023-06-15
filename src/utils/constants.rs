@@ -1,0 +1,7 @@
+pub const URL_POSTGRES_CONNECTION_NAME: &str = "DATABASE_URL";
+pub const PROD_URL_POSTGRES_CONNECTION_NAME: &str = "PROD_DATABASE_URL";
+pub const DEV_URL_POSTGRES_CONNECTION_NAME: &str = "DEV_DATABASE_URL";
+
+pub const PORT: &str = "PORT";
+pub const DEV_PORT: &str = "DEV_PORT";
+pub const PROD_PORT: &str = "PROD_PORT";

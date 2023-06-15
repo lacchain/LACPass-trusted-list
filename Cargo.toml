@@ -1,0 +1,43 @@
+[package]
+name = "lacpass-trusted-list"
+version = "0.1.0"
+edition = "2021"
+authors = ["Erick <eum602@gmail.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+rocket = { version = "=0.5.0-rc.3", features = ["json"] }
+serde = { version = "1.0.118", features = ["derive"] }
+log = "0.4.16"
+async-trait = { version = "0.1" }
+env_logger = "0.9.0"
+chrono = "0.4.19"
+anyhow = "1.0.58"
+clap = "3.2.8"
+
+
+[dependencies.rocket_okapi]
+version = "0.8.0-rc.3"
+features = ["swagger", "rapidoc"]
+
+[dependencies.indexmap]
+version = "1.8.2"
+
+[dependencies.rocket_cors]
+git = "https://github.com/lawliet89/rocket_cors.git"
+rev = "54fae070"
+default-features = false
+
+[dependencies.figment]
+version = "0.10.8"
+
+[dependencies.yansi]
+version = "0.5.1"
+
+[dependencies.uuid]
+version = "1.1.2"
+features = [
+    "v4"
+]

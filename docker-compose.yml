@@ -1,0 +1,61 @@
+version: "3"
+services:
+  postgres:
+    image: postgres:latest
+    ports:
+      - "${EXPOSED_CONTAINER_TYPEORM_PORT}:${TYPEORM_PORT}"
+    environment:
+      POSTGRES_PASSWORD: ${TYPEORM_PASSWORD}
+    volumes:
+      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+      - type: bind
+        source: ./pg-prod-db
+        target: /var/lib/postgresql/data
+        volume:
+          nocopy: true
+    networks:
+      - backend
+  redis:
+    image: redis:latest
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "${EXPOSED_CONTAINER_REDIS_PORT}:${REDIS_PORT}"
+    networks:
+      - backend
+  rust-api-base:
+    build:
+      context: ./
+      dockerfile: Dockerfile.prod
+    environment:
+      PORT: "${PORT}"
+      JWT_SECRET: "${JWT_SECRET}"
+      TYPEORM_TYPE: postgres
+      TYPEORM_HOST: postgres
+      TYPEORM_USERNAME: postgres
+      TYPEORM_PASSWORD: postgres
+      TYPEORM_DATABASE: "${TYPEORM_DATABASE}"
+      TYPEORM_PORT: "${TYPEORM_PORT}"
+      TYPEORM_SYNCHRONIZE: "true"
+      TYPEORM_LOGGING: "true"
+      TYPEORM_MIGRATIONS_RUN: "${TYPEORM_MIGRATIONS_RUN}"
+      ACCESS_TOKEN_LIFE: "${ACCESS_TOKEN_LIFE}"
+      RATE_LIMIT_WINDOW: "${RATE_LIMIT_WINDOW}"
+      RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS}"
+    ports:
+      - "${EXPOSED_CONTAINER_SERVER_PORT}:${PORT}"
+    restart: on-failure
+    container_name: lacpass-trusted-list
+    depends_on:
+      - postgres
+      - redis
+    links:
+      - postgres
+      - redis
+    volumes:
+      - ".env.prod:/app/.env.prod"
+    networks:
+      - backend
+networks:
+  backend:
+    name: backend
+    external: true

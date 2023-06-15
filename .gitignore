@@ -1,0 +1,42 @@
+not-commitable/
+
+### dotenv ###
+.env.dev
+.env.test
+.env.prod
+
+# build
+target
+
+# dotenv environment variables file
+.env.dev
+.env.staging
+.env.prod
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+
+# End of https://www.toptal.com/developers/gitignore/api/yarn,visualstudiocode,node,macos,dotenv
+
+#sonar local files
+.scannerwork
+test-report.xml
+
+# vscode
+.vscode
+
+# IDE
+.idea

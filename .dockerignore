@@ -1,0 +1,11 @@
+# Git and VSCode
+.git
+.gitignore
+/.vscode
+
+# Docker
+Dockerfile.*
+docker-compose.yml
+
+# built
+target
