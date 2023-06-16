@@ -18,6 +18,15 @@ LacPass Trusted List is the component that allows getting all public keys that a
 
 In order to run the app with Docker, you should install or update to the latest version, we recommend to install [Docker-Desktop](https://docs.docker.com/get-docker/) due to composer and some cool CLI-UI tools are included.
 
+## Running directly
+
+```sh
+cp example.env.dev.sh .env.dev.sh
+chmod +x .env.dev.sh
+./.env.dev.sh
+RUST_LOG="debug,tower_http=trace" cargo run # RUST_LOG="debug,tower_http=trace" cargo watch -x run (if you have "watch" installed)
+```
+
 ### Development with Docker
 
 The following commands will build and run all you need to start working on the base, without any other installation requirements. Important: if you already have postgres running locally, you'll need to kill the service before run `docker-compose up`.

@@ -1,0 +1,37 @@
+#PORT
+
+export PORT=80 # use port 80 when running with docker
+export EXPOSED_CONTAINER_SERVER_PORT=3025
+
+#TYPEORM
+
+export TYPEORM_TYPE=postgres
+export TYPEORM_HOST=localhost
+export TYPEORM_USERNAME=postgres
+export TYPEORM_PASSWORD=postgres
+export TYPEORM_DATABASE=lacpass_trusted_list_development
+export TYPEORM_PORT=5432
+export TYPEORM_SYNCHRONIZE=false
+export TYPEORM_LOGGING=true
+export TYPEORM_MIGRATIONS_RUN=true
+export EXPOSED_CONTAINER_TYPEORM_PORT=5455
+
+#REDIS
+
+export REDIS_HOST=redis
+export REDIS_PORT=6379
+export REDIS_PASSWORD=redis
+export EXPOSED_CONTAINER_REDIS_PORT=6405
+
+#TOKEN
+
+export JWT_SECRET=some-secret-string
+export ACCESS_TOKEN_LIFE=360000000
+
+#RATE LIMIT
+
+export RATE_LIMIT_WINDOW=5
+export RATE_LIMIT_MAX_REQUESTS=100
+
+# custom variables
+export TRUSTED_REGISTRIES="0xA4C2dAFD7eaE7CBe86EB6bf9f3b842C3df2607C0,0x9e55c-0xEBB6854aa875867f684dd1d2338eC20908039c67,0x9e55c" # format: "PD1,PD1_CID-COT1,COT2_CID--PD2,PD2_CID-COT2,COT2_CID"

@@ -1,6 +1,7 @@
 not-commitable/
 
 ### dotenv ###
+.env.dev.sh
 .env.dev
 .env.test
 .env.prod
