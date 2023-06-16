@@ -1,6 +1,7 @@
 mod config;
 pub mod controllers;
 pub mod dto;
+pub mod jobs;
 mod logger_config;
 pub mod responses;
 pub mod services;
@@ -10,6 +11,7 @@ pub mod utils;
 extern crate rocket;
 
 use controllers::index::stage;
+use jobs::index::JobManager;
 
 use crate::config::get_envs;
 use crate::logger_config::setup_logger;
@@ -18,5 +20,8 @@ use crate::logger_config::setup_logger;
 async fn rocket() -> _ {
     let envs = get_envs().await.unwrap();
     setup_logger(true, envs.value_of("log-conf"));
+    tokio::spawn(async move {
+        JobManager::sweep_trusted_registries();
+    });
     rocket::build().attach(stage())
 }

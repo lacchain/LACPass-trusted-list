@@ -674,6 +674,7 @@ dependencies = [
  "rocket_cors",
  "rocket_okapi",
  "serde",
+ "tokio",
  "uuid",
  "yansi",
 ]
