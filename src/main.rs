@@ -2,8 +2,10 @@ mod config;
 pub mod controllers;
 pub mod databases;
 pub mod dto;
+pub mod entities;
 pub mod jobs;
 mod logger_config;
+pub mod migration;
 pub mod responses;
 pub mod services;
 pub mod utils;
@@ -23,8 +25,6 @@ async fn rocket() -> _ {
     setup_logger(true, envs.value_of("log-conf"));
     tokio::spawn(async move {
         JobManager::sweep_trusted_registries();
-    })
-    .await
-    .unwrap();
+    });
     rocket::build().attach(stage())
 }

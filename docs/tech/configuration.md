@@ -20,10 +20,18 @@ In order to run the app with Docker, you should install or update to the latest 
 
 ## Running directly
 
+- Prepare databases
+
 ```sh
-cp example.env.dev.sh .env.dev.sh
+docker-compose -f docker-compose-dbs.yml --env-file .env.dev up
+```
+
+- Prepare environment variables and run
+
+```sh
+cp .example.env.dev.sh .env.dev.sh
 chmod +x .env.dev.sh
-./.env.dev.sh
+. ./.env.dev.sh
 RUST_LOG="debug,tower_http=trace" cargo run # RUST_LOG="debug,tower_http=trace" cargo watch -x run (if you have "watch" installed)
 ```
 

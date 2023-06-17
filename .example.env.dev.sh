@@ -1,6 +1,6 @@
 #PORT
 
-export PORT=8000 # use port 80 when running with docker
+export PORT=3025 # use port 80 when running with docker
 export EXPOSED_CONTAINER_SERVER_PORT=3025
 
 #TYPEORM
