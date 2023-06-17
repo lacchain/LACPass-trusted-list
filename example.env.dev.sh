@@ -6,7 +6,7 @@ export EXPOSED_CONTAINER_SERVER_PORT=3025
 #TYPEORM
 
 export TYPEORM_TYPE=postgres
-export TYPEORM_HOST=localhost
+export TYPEORM_HOST=127.0.0.1
 export TYPEORM_USERNAME=postgres
 export TYPEORM_PASSWORD=postgres
 export TYPEORM_DATABASE=lacpass_trusted_list_development
