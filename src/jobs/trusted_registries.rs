@@ -37,6 +37,7 @@ impl TrustedRegistries {
                 chain_id: 0x9e55c,
                 contract_address: "0xEBB6854aa875867f684dd1d2338eC20908039c67".to_owned(),
             },
+            retry_period: 0,
         };
         let mut trs: Vec<TrustedRegistry> = Vec::new();
         trs.push(t1);
@@ -50,6 +51,7 @@ impl TrustedRegistries {
             .map(|i| {
                 self.registries[i].start_up = (i as u64) * 100;
                 self.registries[i].period_seconds = 2000;
+                self.registries[i].retry_period = 30;
             })
             .collect::<Vec<_>>();
     }

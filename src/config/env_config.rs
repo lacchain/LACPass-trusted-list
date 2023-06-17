@@ -19,10 +19,16 @@ enum Profiles {
 }
 
 #[derive(Deserialize, Serialize)]
+pub struct Database {
+    pub url: String,
+}
+
+#[derive(Deserialize, Serialize)]
 pub struct Config {
     port: i32,
     profile: Profiles,
     address: String,
+    pub database: Database,
 }
 
 impl Default for Config {
@@ -31,6 +37,9 @@ impl Default for Config {
             port: Config::get_port(constants::PORT),
             profile: Profiles::DEFAULT,
             address: "0.0.0.0".to_string(),
+            database: Database {
+                url: Config::get_database_url(constants::URL_POSTGRES_CONNECTION_NAME),
+            },
         }
     }
 }
@@ -51,6 +60,9 @@ impl Config {
             port: Config::get_port(constants::DEV_PORT),
             profile: Profiles::DEV,
             address: "0.0.0.0".to_string(),
+            database: Database {
+                url: Config::get_database_url(constants::DEV_URL_POSTGRES_CONNECTION_NAME),
+            },
         }
     }
 
@@ -59,6 +71,9 @@ impl Config {
             port: Config::get_port(constants::PROD_PORT),
             profile: Profiles::PROD,
             address: "0.0.0.0".to_string(),
+            database: Database {
+                url: Config::get_database_url(constants::PROD_URL_POSTGRES_CONNECTION_NAME),
+            },
         }
     }
 
@@ -105,5 +120,8 @@ impl Config {
             Ok(s) => Utils::i32_from_string(s),
             Err(_) => 3025,
         }
+    }
+    fn get_database_url(name: &'static str) -> String {
+        Utils::get_env(name)
     }
 }

@@ -16,11 +16,26 @@ impl JobManager {
                 tokio::spawn(async move {
                     thread::sleep(Duration::from_secs(r.start_up));
                     loop {
-                        r.sweep();
-                        thread::sleep(Duration::from_secs(r.period_seconds))
+                        match r.sweep().await {
+                            Ok(_) => {
+                                info!(
+                                    "Sucessful update, next update will take place in {:?} seconds ...",
+                                    r.period_seconds
+                                );
+                                thread::sleep(Duration::from_secs(r.period_seconds));
+                            }
+                            Err(_e) => {
+                                error!(
+                                    "Failed sweep: {:?} ... retrying in {:?} seconds ...",
+                                    r, r.retry_period
+                                );
+                                thread::sleep(Duration::from_secs(r.retry_period));
+                            }
+                        }
                     }
                 })
             })
+            //.map(|th| async { th.await.unwrap() })
             .collect::<Vec<_>>();
     }
 }

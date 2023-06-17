@@ -8,7 +8,7 @@ use rocket_okapi::settings::{OpenApiSettings, UrlObject};
 use rocket_okapi::swagger_ui::{make_swagger_ui, SwaggerUIConfig};
 use rocket_okapi::{mount_endpoints_and_merged_docs, openapi_get_routes_spec};
 
-use crate::controllers::config::Config;
+use crate::config::env_config::Config;
 
 pub fn stage() -> AdHoc {
     AdHoc::on_ignite("SQLx Stage", |_rocket_instance| async {
