@@ -25,8 +25,7 @@ impl TrustedRegistry {
             "Sweeping trusted registry ... {:?} {:?}",
             self.public_directory, self.chain_of_trust
         );
-        info!("Connection is {}", Config::get_config().database.url);
-        match Database::connect(Config::get_config().database.url).await {
+        match Database::connect(Config::get_config().databases.dbconnection.url).await {
             Ok(_c) => {
                 info!("Successfully connected a database connection");
                 Ok(())

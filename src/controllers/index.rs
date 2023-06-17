@@ -7,13 +7,16 @@ use rocket_okapi::rapidoc::{make_rapidoc, GeneralConfig, HideShowConfig, RapiDoc
 use rocket_okapi::settings::{OpenApiSettings, UrlObject};
 use rocket_okapi::swagger_ui::{make_swagger_ui, SwaggerUIConfig};
 use rocket_okapi::{mount_endpoints_and_merged_docs, openapi_get_routes_spec};
+use sea_orm_rocket::Database;
 
 use crate::config::env_config::Config;
+use crate::databases::pool::Db;
 
 pub fn stage() -> AdHoc {
     AdHoc::on_ignite("SQLx Stage", |_rocket_instance| async {
         let figment = Config::figment();
         let mut building_rocket = rocket::custom(figment)
+            .attach(Db::init())
             .mount(
                 "/swagger-ui/",
                 make_swagger_ui(&SwaggerUIConfig {
