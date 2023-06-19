@@ -11,12 +11,14 @@ use sea_orm_rocket::Database;
 
 use crate::config::env_config::Config;
 use crate::databases::pool::Db;
+use crate::migration::index::run_migrations;
 
 pub fn stage() -> AdHoc {
     AdHoc::on_ignite("SQLx Stage", |_rocket_instance| async {
         let figment = Config::figment();
         let mut building_rocket = rocket::custom(figment)
             .attach(Db::init())
+            .attach(AdHoc::try_on_ignite("Migrations", run_migrations))
             .mount(
                 "/swagger-ui/",
                 make_swagger_ui(&SwaggerUIConfig {
@@ -45,7 +47,6 @@ pub fn stage() -> AdHoc {
         // let custom_route_spec = (vec![], custom_openapi_spec());
         mount_endpoints_and_merged_docs! {
         building_rocket, "/api/v1".to_owned(), openapi_settings,
-            // "" => custom_route_spec,
             "/certificates" => get_routes_and_docs(&openapi_settings)
         };
         building_rocket

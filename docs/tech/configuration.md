@@ -104,3 +104,7 @@ After running the server you will find OpenAPI Specification here: `http://<host
 ## Code Quality
 
 TODO: SonarQube
+
+## Migrations and New Entities generation
+
+[Migration Stuffs](./migrations.md)
