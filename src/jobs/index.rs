@@ -1,6 +1,7 @@
 use std::{thread, time::Duration};
 
 use log::info;
+use yansi::Paint;
 
 use crate::jobs::trusted_registries::TrustedRegistries;
 
@@ -18,18 +19,25 @@ impl JobManager {
                     loop {
                         match r.sweep().await {
                             Ok(_) => {
-                                info!(
-                                    "Sucessful update, next update will take place in {:?} seconds ...",
-                                    r.period_seconds
+                                let message = format!(
+                                    "{} {} {} {}",
+                                    Paint::masked("🌀"),
+                                    Paint::green(
+                                        "Sucessful public key update, next update will take place in"
+                                    )
+                                    .bold(),
+                                    r.period_seconds,
+                                    "seconds..."
                                 );
-                                thread::sleep(Duration::from_secs(r.period_seconds));
+                                info!("{}", message);
+                                tokio::time::sleep(Duration::from_secs(r.period_seconds)).await;
                             }
                             Err(_e) => {
+                                let message = format!("{} {} {}", Paint::masked("❌") ,Paint::red("Failed to sweep, ... retrying in "), r.retry_period);
                                 error!(
-                                    "Failed sweep: {:?} ... retrying in {:?} seconds ...",
-                                    r, r.retry_period
+                                    "{}", message
                                 );
-                                thread::sleep(Duration::from_secs(r.retry_period));
+                                tokio::time::sleep(Duration::from_secs(r.retry_period)).await;
                             }
                         }
                     }

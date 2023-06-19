@@ -2,7 +2,7 @@ use log::info;
 use sea_orm::Database;
 use serde::{Deserialize, Serialize};
 
-use crate::config::env_config::Config;
+use crate::{config::env_config::Config, services::public_directory::PublicDirectoryService};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Contract {
@@ -26,15 +26,35 @@ impl TrustedRegistry {
             self.public_directory, self.chain_of_trust
         );
         match Database::connect(Config::get_config().databases.dbconnection.url).await {
-            Ok(_c) => {
+            Ok(c) => {
                 info!("Successfully connected a database connection");
-                Ok(())
+                match PublicDirectoryService::get_public_directory(
+                    &c,
+                    &self.public_directory.contract_address,
+                    &self.public_directory.chain_id.to_string(),
+                )
+                .await
+                {
+                    Ok(result) => match result {
+                        Some(v) => {
+                            info!("Last block saved is {:?}", v);
+                            Ok(())
+                        }
+                        None => {
+                            info!("Nothing was found");
+                            Ok(())
+                        }
+                    },
+                    Err(e) => {
+                        error!("There was an error while trying to retrieve public directory last block saved {:?}", e);
+                        Err(e.into())
+                    }
+                }
             }
             Err(e) => {
                 let message = format!("There was an error connecting to the database: {:?}", e);
                 error!("{}", &message);
                 Err(e.into())
-                // panic!("{}", message)
             }
         }
         // read from database the last block saved for public directory configured smart contract
