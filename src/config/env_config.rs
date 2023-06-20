@@ -38,7 +38,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Config {
         Config {
-            port: Config::get_port(constants::PORT),
+            port: Config::get_port(constants::PORT.to_owned()),
             profile: Profiles::DEFAULT,
             address: "0.0.0.0".to_string(),
             databases: Databases {
@@ -63,7 +63,7 @@ impl Provider for Config {
 impl Config {
     fn development() -> Config {
         Config {
-            port: Config::get_port(constants::DEV_PORT),
+            port: Config::get_port(constants::DEV_PORT.to_owned()),
             profile: Profiles::DEV,
             address: "0.0.0.0".to_string(),
             databases: Databases {
@@ -76,7 +76,7 @@ impl Config {
 
     fn production() -> Config {
         Config {
-            port: Config::get_port(constants::PROD_PORT),
+            port: Config::get_port(constants::PROD_PORT.to_owned()),
             profile: Profiles::PROD,
             address: "0.0.0.0".to_string(),
             databases: Databases {
@@ -125,13 +125,21 @@ impl Config {
         info!("Using profile {:?}", Paint::blue(self.profile).bold());
     }
 
-    fn get_port(name: &'static str) -> i32 {
-        match Utils::get_env_or_err(name) {
+    fn get_port(name: String) -> i32 {
+        match Utils::get_env_or_err(&name) {
             Ok(s) => Utils::i32_from_string(s),
             Err(_) => 3025,
         }
     }
     fn get_database_url(name: &'static str) -> String {
         Utils::get_env(name)
+    }
+    pub fn get_provider(chain_id: String) -> String {
+        let mut key = "RPC_CONNECTION_".to_owned();
+        key.push_str(&chain_id);
+        match Utils::get_env_or_err(&key) {
+            Ok(s) => s, // TODO: Validate is a valid http connection string
+            Err(e) => panic!("{}", e),
+        }
     }
 }

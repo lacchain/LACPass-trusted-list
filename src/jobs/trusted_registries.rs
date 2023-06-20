@@ -39,11 +39,11 @@ impl TrustedRegistries {
             period_seconds: 400,
             start_up: 5,
             public_directory: Contract {
-                chain_id: "0x9e55c".to_owned(),
+                chain_id: "648540".to_owned(),
                 contract_address: H160(public_directory_address),
             },
             chain_of_trust: Contract {
-                chain_id: "0x9e55c".to_owned(),
+                chain_id: "648540".to_owned(),
                 contract_address: H160(cot_address),
             },
             retry_period: 0,
