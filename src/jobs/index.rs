@@ -43,7 +43,6 @@ impl JobManager {
                     }
                 })
             })
-            //.map(|th| async { th.await.unwrap() })
             .collect::<Vec<_>>();
     }
 }

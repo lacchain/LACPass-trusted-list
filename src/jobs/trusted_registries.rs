@@ -1,7 +1,10 @@
-use crate::utils::utils::Utils;
+use crate::{
+    services::trusted_registry::trusted_registry::{Contract, TrustedRegistry},
+    utils::utils::Utils,
+};
+use hex::FromHex;
 use serde::{Deserialize, Serialize};
-
-use super::trusted_registry::{Contract, TrustedRegistry};
+use web3::types::H160;
 
 #[derive(Deserialize, Serialize)]
 pub struct TrustedRegistries {
@@ -26,16 +29,22 @@ impl TrustedRegistries {
 
     fn set_trusted_registries(&mut self) -> () {
         let _raw_trusted_registries = self.get_trusted_registries();
+        let pd_str = "fee5C6939309a9906e292753B1947c8De1FD4423"; // "e647e8e076cffA10425c0C49aAaC1036a3b2ddB5"; // TODO: factor better error
+        let public_directory_address =
+            <[u8; 20]>::from_hex(pd_str).expect("Invalid public directory contract address");
+        let cot_str = "EBB6854aa875867f684dd1d2338eC20908039c67";
+        let cot_address =
+            <[u8; 20]>::from_hex(cot_str).expect("Invalid chain of trust contract address");
         let t1 = TrustedRegistry {
             period_seconds: 400,
             start_up: 5,
             public_directory: Contract {
-                chain_id: 0x9e55c,
-                contract_address: "0x4A1bD1198890af301AF9b6F3a3a11952a86C1c8e".to_owned(),
+                chain_id: "0x9e55c".to_owned(),
+                contract_address: H160(public_directory_address),
             },
             chain_of_trust: Contract {
-                chain_id: 0x9e55c,
-                contract_address: "0xEBB6854aa875867f684dd1d2338eC20908039c67".to_owned(),
+                chain_id: "0x9e55c".to_owned(),
+                contract_address: H160(cot_address),
             },
             retry_period: 0,
         };

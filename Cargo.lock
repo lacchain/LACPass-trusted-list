@@ -1383,6 +1383,7 @@ dependencies = [
  "clap",
  "env_logger",
  "figment",
+ "hex",
  "indexmap",
  "log",
  "rocket",
