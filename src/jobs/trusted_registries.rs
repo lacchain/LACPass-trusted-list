@@ -29,7 +29,7 @@ impl TrustedRegistries {
 
     fn set_trusted_registries(&mut self) -> () {
         let _raw_trusted_registries = self.get_trusted_registries();
-        let pd_str = "fee5C6939309a9906e292753B1947c8De1FD4423"; // "e647e8e076cffA10425c0C49aAaC1036a3b2ddB5"; // TODO: factor better error
+        let pd_str = "BD74DE9059CD63AC60c3AaC25c92a798be8D18b9"; // "e647e8e076cffA10425c0C49aAaC1036a3b2ddB5"; // TODO: factor better error
         let public_directory_address =
             <[u8; 20]>::from_hex(pd_str).expect("Invalid public directory contract address");
         let cot_str = "EBB6854aa875867f684dd1d2338eC20908039c67";
