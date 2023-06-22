@@ -7,7 +7,10 @@ use web3::{
 
 use crate::{
     config::env_config::Config,
-    services::{trusted_registry::trusted_registry::Contract as C, web3::event::EventManager},
+    services::{
+        trusted_registry::trusted_registry::Contract as C,
+        web3::{event::EventManager, utils::get_u64_from_log},
+    },
 };
 
 use std::str;
@@ -45,10 +48,75 @@ impl ContractInterface {
         Ok(prev_block.as_u64())
     }
 
+    /// Returns block previous prior to the last block saved param on the smart contract
+    pub async fn find_previous_block(&self, block: &u64) -> anyhow::Result<Option<u64>> {
+        match self
+            .find_previous_block_by_event_name("MemberChanged", block)
+            .await
+        {
+            Ok(v) => {
+                if let Some(s) = v {
+                    return Ok(Some(s));
+                }
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+        match self
+            .find_previous_block_by_event_name("DidAssociated", block)
+            .await
+        {
+            Ok(v) => {
+                if let Some(s) = v {
+                    return Ok(Some(s));
+                }
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+        match self
+            .find_previous_block_by_event_name("DidDisassociated", block)
+            .await
+        {
+            Ok(v) => {
+                if let Some(s) = v {
+                    return Ok(Some(s));
+                }
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+        Ok(None)
+    }
+
+    pub async fn find_previous_block_by_event_name(
+        &self,
+        name_or_signature: &str,
+        block: &u64,
+    ) -> anyhow::Result<Option<u64>> {
+        match self
+            .get_events_in_block_by_method(name_or_signature, block)
+            .await
+        {
+            Ok(logs) => {
+                if logs.len() == 0 {
+                    return Ok(None);
+                }
+                Ok(Some(get_u64_from_log(&logs[0], "prevBlock")))
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
     pub async fn get_events_in_block_by_method(
         &self,
         name_or_signature: &str,
-        block: &str,
+        block: &u64,
     ) -> anyhow::Result<Vec<Log>> {
         let member_changed = self
             .event_manager

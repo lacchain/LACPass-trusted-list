@@ -40,14 +40,13 @@ impl TrustedRegistry {
                         return Err(e);
                     }
                 }
-                let mut _last_block_saved = 0;
                 match public_directory_service_instance.sweep(&c).await {
                     Ok(_) => {
                         // sweep chain of trust
                         // read did registry changes
                     }
                     Err(e) => {
-                        error!("There was an error while trying to retrieve public directory last block saved {:?}", e);
+                        error!("There was an error while trying to retrieve public directory last block saved ---> {:?}", e);
                         return Err(e.into());
                     }
                 }
