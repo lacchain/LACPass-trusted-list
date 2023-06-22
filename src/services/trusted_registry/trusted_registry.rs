@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 use web3::types::H160;
 
 use crate::{
-    config::env_config::Config, services::public_directory::index::PublicDirectoryService,
+    config::env_config::Config,
+    services::{
+        public_directory::index::PublicDirectoryService,
+        trusted_registry::core_worker::CoreWorkerService,
+    },
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -31,16 +35,16 @@ impl TrustedRegistry {
         match Database::connect(Config::get_config().databases.dbconnection.url).await {
             Ok(c) => {
                 info!("Successfully connected a database connection");
-                let public_directory_service_instance: PublicDirectoryService;
+                let core_worker_service: CoreWorkerService;
                 match PublicDirectoryService::new(self.public_directory.clone()).await {
                     Ok(result) => {
-                        public_directory_service_instance = result;
+                        core_worker_service = CoreWorkerService::new(result);
                     }
                     Err(e) => {
                         return Err(e);
                     }
                 }
-                match public_directory_service_instance.sweep(&c).await {
+                match core_worker_service.sweep(&c).await {
                     Ok(_) => {
                         // sweep chain of trust
                         // read did registry changes
