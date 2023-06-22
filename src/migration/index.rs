@@ -4,7 +4,9 @@ use sea_orm_rocket::Database;
 
 use crate::{
     databases::pool::Db,
-    migration::{m20230617_195505_public_directory, m20230622_011005_did},
+    migration::{
+        m20230617_195505_public_directory, m20230622_011005_did, m20230622_035815_pd_member,
+    },
 };
 pub struct Migrator;
 
@@ -14,6 +16,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20230617_195505_public_directory::Migration),
             Box::new(m20230622_011005_did::Migration),
+            Box::new(m20230622_035815_pd_member::Migration),
         ]
     }
 }

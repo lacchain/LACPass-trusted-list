@@ -52,7 +52,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-enum PublicDirectory {
+pub(crate) enum PublicDirectory {
     Table,
     Id,
     ContractAddress,
