@@ -52,7 +52,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-enum PdMember {
+pub(crate) enum PdMember {
     Table,
     Id,
     MemberId,

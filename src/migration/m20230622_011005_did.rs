@@ -32,7 +32,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-enum Did {
+pub(crate) enum Did {
     Table,
     Id,
     UpperBlock,

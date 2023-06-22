@@ -4,13 +4,12 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
-#[sea_orm(table_name = "pd_member")]
+#[sea_orm(table_name = "pd_did_member")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub member_id: i64,
-    pub exp: i64,
-    pub pubic_directory_id: Uuid,
+    pub did_id: Uuid,
+    pub pd_member_id: Uuid,
     pub block_number: i64,
 }
 
