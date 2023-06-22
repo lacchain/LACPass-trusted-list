@@ -37,12 +37,12 @@ impl ContractInterface {
             event_manager,
         })
     }
-    pub async fn get_last_block(&self) -> anyhow::Result<i64> {
+    pub async fn get_last_block(&self) -> anyhow::Result<u64> {
         let result = self
             .contract_instance
             .query("prevBlock", (), None, Options::default(), None);
         let prev_block: U256 = result.await?;
-        Ok(i64::from(prev_block.as_u32()))
+        Ok(prev_block.as_u64())
     }
 
     pub async fn get_events_in_block_by_method(

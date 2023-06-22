@@ -32,7 +32,7 @@ impl PublicDirectoryService {
         })
     }
     pub async fn sweep(&self, db: &DatabaseConnection) -> anyhow::Result<()> {
-        let contract_last_block: i64;
+        let contract_last_block: u64;
         match self.contract_interface.get_last_block().await {
             Ok(result) => {
                 if result == 0 {
@@ -63,8 +63,8 @@ impl PublicDirectoryService {
 
     pub async fn process_events_in_block_range(
         &self,
-        contract_last_block: i64,
-        last_block_saved: i64,
+        contract_last_block: u64,
+        last_block_saved: u64,
     ) -> anyhow::Result<()> {
         if contract_last_block > last_block_saved {
             info!(

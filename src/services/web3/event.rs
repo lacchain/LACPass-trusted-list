@@ -1,6 +1,5 @@
 use crate::{
     config::env_config::Config, services::trusted_registry::trusted_registry::Contract as C,
-    utils::utils::Utils,
 };
 use anyhow::anyhow;
 use sha3::{Digest, Keccak256};
@@ -35,19 +34,17 @@ impl EventManager {
 
     pub async fn sweep(
         &self,
-        from: &str,
-        to: &str,
+        from: &u64,
+        to: &u64,
         name_or_signature: &str,
     ) -> anyhow::Result<Vec<Log>> {
         let event = self.load_event(&self.abi, &name_or_signature)?;
-        let wrapped_topic = self.wrap_signature(event.clone()).unwrap(); // todo: improve
-        let from = Utils::integer_part(&from).unwrap();
-        let to = Utils::integer_part(&to).unwrap();
+        let wrapped_topic: Option<Vec<H256>> = self.wrap_signature(event.clone()).unwrap(); // todo: improve
         let filter = FilterBuilder::default()
             .address(self.address.clone())
             .topics(wrapped_topic, None, None, None)
-            .from_block(BlockNumber::Number(U64::from(from)))
-            .to_block(BlockNumber::Number(U64::from(to)))
+            .from_block(BlockNumber::Number(U64::from(from.to_owned())))
+            .to_block(BlockNumber::Number(U64::from(to.to_owned())))
             .build();
         let filter = self.web3.eth_filter().create_logs_filter(filter).await?;
         let logs = filter.logs().await.unwrap();

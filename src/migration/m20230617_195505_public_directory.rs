@@ -24,6 +24,16 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(
+                        ColumnDef::new(PublicDirectory::UpperBlock)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PublicDirectory::LastProcessedBlock)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
                         ColumnDef::new(PublicDirectory::LastBlockSaved)
                             .big_integer()
                             .not_null(),
@@ -46,6 +56,8 @@ enum PublicDirectory {
     Table,
     Id,
     ContractAddress,
+    UpperBlock,
+    LastProcessedBlock,
     LastBlockSaved,
     ChainId,
 }

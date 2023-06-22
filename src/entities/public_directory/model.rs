@@ -10,6 +10,8 @@ pub struct Model {
     pub id: Uuid,
     #[sea_orm(column_type = "Text")]
     pub contract_address: String,
+    pub upper_block: i64,
+    pub last_processed_block: i64,
     pub last_block_saved: i64,
     pub chain_id: String,
 }

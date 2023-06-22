@@ -23,10 +23,10 @@ impl DataInterfaceService {
         .await
     }
 
-    pub async fn get_last_block(&self, db: &DatabaseConnection) -> anyhow::Result<i64> {
+    pub async fn get_last_block(&self, db: &DatabaseConnection) -> anyhow::Result<u64> {
         match self.get_public_directory_from_database(&db).await {
             Ok(result) => match result {
-                Some(v) => Ok(v.last_block_saved),
+                Some(v) => Ok(v.last_block_saved as u64),
                 None => Ok(0),
             },
             Err(e) => {
