@@ -42,6 +42,13 @@ impl MigrationTrait for Migration {
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
+                    .index(
+                        Index::create()
+                            .name("pd_did_member_id")
+                            .col(PdDidMember::PdMemberId)
+                            .col(PdDidMember::DidId)
+                            .unique(),
+                    )
                     .to_owned(),
             )
             .await

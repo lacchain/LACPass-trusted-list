@@ -7,7 +7,7 @@ use crate::{
     config::env_config::Config,
     services::{
         public_directory::index::PublicDirectoryService,
-        trusted_registry::core_worker::CoreWorkerService,
+        public_directory::public_directory_worker_service::PublicDirectoryWorkerService,
     },
 };
 
@@ -34,17 +34,17 @@ impl TrustedRegistry {
         );
         match Database::connect(Config::get_config().databases.dbconnection.url).await {
             Ok(c) => {
-                info!("Successfully connected a database connection");
-                let core_worker_service: CoreWorkerService;
+                info!("Established a database connection");
+                let public_directory_worker_service: PublicDirectoryWorkerService;
                 match PublicDirectoryService::new(self.public_directory.clone()).await {
                     Ok(result) => {
-                        core_worker_service = CoreWorkerService::new(result);
+                        public_directory_worker_service = PublicDirectoryWorkerService::new(result);
                     }
                     Err(e) => {
                         return Err(e);
                     }
                 }
-                match core_worker_service.sweep(&c).await {
+                match public_directory_worker_service.sweep(&c).await {
                     Ok(_) => {
                         // sweep chain of trust
                         // read did registry changes

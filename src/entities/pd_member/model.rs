@@ -10,7 +10,7 @@ pub struct Model {
     pub id: Uuid,
     pub member_id: i64,
     pub exp: i64,
-    pub pubic_directory_id: Uuid,
+    pub public_directory_id: Uuid,
     pub block_number: i64,
 }
 

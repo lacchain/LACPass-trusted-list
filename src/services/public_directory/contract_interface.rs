@@ -15,6 +15,7 @@ use crate::{
 
 use std::str;
 
+#[derive(Debug, Clone)]
 pub struct ContractInterface {
     contract_instance: Contract<Http>,
     event_manager: EventManager,

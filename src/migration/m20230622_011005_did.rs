@@ -12,13 +12,7 @@ impl MigrationTrait for Migration {
                     .table(Did::Table)
                     .if_not_exists()
                     .col(ColumnDef::new(Did::Id).uuid().not_null().primary_key())
-                    .col(ColumnDef::new(Did::UpperBlock).big_integer().not_null())
-                    .col(
-                        ColumnDef::new(Did::LastProcessedBlock)
-                            .big_integer()
-                            .not_null(),
-                    )
-                    .col(ColumnDef::new(Did::LastBlockSaved).big_integer().not_null())
+                    .col(ColumnDef::new(Did::Did).string().not_null().unique_key())
                     .to_owned(),
             )
             .await
@@ -35,7 +29,5 @@ impl MigrationTrait for Migration {
 pub(crate) enum Did {
     Table,
     Id,
-    UpperBlock,
-    LastProcessedBlock,
-    LastBlockSaved,
+    Did,
 }

@@ -10,9 +10,6 @@ pub struct Model {
     pub id: Uuid,
     #[sea_orm(column_type = "Text")]
     pub did: String,
-    pub upper_block: i64,
-    pub last_processed_block: i64,
-    pub last_block_saved: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -10,6 +10,7 @@ use web3::{
     Web3,
 };
 
+#[derive(Debug, Clone)]
 pub struct EventManager {
     abi: String,
     web3: Web3<Http>,
