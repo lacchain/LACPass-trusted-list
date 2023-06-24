@@ -6,7 +6,7 @@ use crate::{
     databases::pool::Db,
     migration::{
         m20230617_195505_public_directory, m20230622_011005_did, m20230622_035815_pd_member,
-        m20230622_044839_pd_did_member,
+        m20230622_044839_pd_did_member, m20230623_215702_public_key,
     },
 };
 pub struct Migrator;
@@ -19,6 +19,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230622_011005_did::Migration),
             Box::new(m20230622_035815_pd_member::Migration),
             Box::new(m20230622_044839_pd_did_member::Migration),
+            Box::new(m20230623_215702_public_key::Migration),
         ]
     }
 }

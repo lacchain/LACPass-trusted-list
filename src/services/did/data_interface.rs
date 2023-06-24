@@ -36,4 +36,15 @@ impl DidDataInterfaceService {
             }
         }
     }
+
+    pub async fn find_all(
+        &self,
+        db: &DatabaseConnection,
+        public_directory_contract_address: &str,
+        chain_id: &str,
+    ) -> Result<Vec<DidModel>, sea_orm::DbErr> {
+        DidEntity::find_all(public_directory_contract_address, chain_id)
+            .all(db)
+            .await
+    }
 }

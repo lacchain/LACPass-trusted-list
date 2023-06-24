@@ -26,6 +26,17 @@ impl PdDidMemberDataInterfaceService {
         }
     }
 
+    pub async fn find_all(
+        &self,
+        db: &DatabaseConnection,
+        public_directory_contract_address: &str,
+        chain_id: &str,
+    ) -> Result<Vec<PdDidMemberModel>, sea_orm::DbErr> {
+        PdDidMemberEntity::find_all(public_directory_contract_address, chain_id)
+            .all(db)
+            .await
+    }
+
     pub async fn get_pd_did_member(
         &self,
         db: &DatabaseConnection,
