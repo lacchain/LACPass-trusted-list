@@ -4,10 +4,11 @@ use std::thread;
 use chrono::prelude::*;
 use env_logger::fmt::Formatter;
 use env_logger::Builder;
-use log::{LevelFilter, Record};
+use env_logger::Env;
+use log::Record;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>) {
-    let output_format = move |formatter: &mut Formatter, record: &Record| {
+    let _output_format = move |formatter: &mut Formatter, record: &Record| {
         let thread_name = if log_thread {
             format!("(t: {}) ", thread::current().name().unwrap_or("unknown"))
         } else {
@@ -27,17 +28,8 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>) {
         )
     };
 
-    let mut builder = Builder::new();
-    builder
-        .format(output_format)
-        .filter(None, LevelFilter::Info);
-
+    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
+    // builder.format(output_format); // avoiding custom formatting
     rust_log.map(|conf| builder.parse_filters(conf));
-
     builder.init();
-}
-
-#[allow(dead_code)]
-fn main() {
-    println!("This is not an example");
 }

@@ -24,6 +24,20 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(PublicKey::PemKey).binary().not_null())
+                    .col(ColumnDef::new(PublicKey::ContentHash).string().not_null())
+                    .col(ColumnDef::new(PublicKey::Exp).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(PublicKey::IsCompromised)
+                            .boolean()
+                            .default(false),
+                    )
+                    .index(
+                        Index::create()
+                            .name("content_hash_did_id")
+                            .col(PublicKey::ContentHash)
+                            .col(PublicKey::DidId)
+                            .unique(),
+                    )
                     .to_owned(),
             )
             .await
@@ -36,7 +50,6 @@ impl MigrationTrait for Migration {
     }
 }
 
-/// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
 enum PublicKey {
     Table,
@@ -44,4 +57,7 @@ enum PublicKey {
     DidId,
     BlockNumber,
     PemKey,
+    ContentHash,
+    Exp,
+    IsCompromised,
 }

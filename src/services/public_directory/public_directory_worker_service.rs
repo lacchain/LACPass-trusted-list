@@ -6,7 +6,7 @@ use uuid::Uuid;
 use web3::ethabi::Log;
 
 use crate::services::{
-    did::did_service::DidService,
+    did::data_interface::DidDataInterfaceService,
     pd_did_member::data_interface::PdDidMemberDataInterfaceService,
     pd_member::data_interface::PdMemberDataInterfaceService,
     public_directory::index::PublicDirectoryService,
@@ -23,7 +23,6 @@ impl PublicDirectoryWorkerService {
         PublicDirectoryWorkerService {
             pd_did_member_data_interface_service: PdDidMemberDataInterfaceService::new(
                 pd_member_data_service,
-                DidService::new(),
             ),
         }
     }
@@ -196,10 +195,7 @@ impl PublicDirectoryWorkerService {
                 "Starting sweep; from block {}, to target block  {}",
                 &block_to_process, &target_block
             );
-            match self
-                .public_directory_process_events_in_block(db, &block_to_process)
-                .await
-            {
+            match self.process_events_in_block(db, &block_to_process).await {
                 Ok(prev_block) => {
                     match self
                         .pd_did_member_data_interface_service
@@ -278,8 +274,9 @@ impl PublicDirectoryWorkerService {
         Ok(did_associated_map)
     }
 
-    //// Returns previous block
-    pub async fn public_directory_process_events_in_block(
+    //// Process event in the block whose number is passed as an argument.
+    /// Returns previous block
+    pub async fn process_events_in_block(
         &self,
         db: &DatabaseConnection,
         block: &u64,
@@ -410,24 +407,16 @@ impl PublicDirectoryWorkerService {
 
                 // "SAVE" to Did table
                 let did_id: Uuid;
-                match self
-                    .pd_did_member_data_interface_service
-                    .did_service
-                    .did_data_interface_service
-                    .get_did_from_database(db, &did)
-                    .await
-                {
+                match DidDataInterfaceService::get_did_from_database(db, &did).await {
                     Ok(v) => match v {
                         Some(existing_did) => {
                             did_id = existing_did.id;
                         }
                         None => {
-                            match self
-                                .pd_did_member_data_interface_service
-                                .did_service
-                                .did_data_interface_service
-                                .insert_did_to_database(db, &did)
-                                .await
+                            match DidDataInterfaceService::insert_did_to_database(
+                                db, &did, None, None, None,
+                            )
+                            .await
                             {
                                 Ok(v) => did_id = v.id,
                                 Err(e) => return Err(e.into()),

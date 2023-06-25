@@ -31,4 +31,24 @@ impl Utils {
         let dot_pos = value.find(".").unwrap_or(value.len());
         value[..dot_pos].parse()
     }
+
+    pub fn vec_u8_to_hex_string(value: Vec<u8>) -> Option<String> {
+        let value = value
+            .into_iter()
+            .map(|el| format!("{:02x?}", el))
+            .collect::<Vec<_>>()
+            .concat();
+        Some(format!("0x{}", value))
+    }
+
+    pub fn vec_u8_to_u64(value: Vec<u8>) -> Option<u64> {
+        match (0..value.len())
+            .into_iter()
+            .map(|i| 16_u64.pow((i as u64).try_into().unwrap()) * value[i] as u64)
+            .reduce(|acc, e| acc + e)
+        {
+            Some(i) => Some(i),
+            None => None,
+        }
+    }
 }

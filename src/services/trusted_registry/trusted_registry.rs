@@ -6,7 +6,8 @@ use web3::types::H160;
 use crate::{
     config::env_config::Config,
     services::{
-        did::did_registry_worker_service::DidRegistryWorkerService, did::did_service::DidService,
+        did::data_interface::DidDataInterfaceService,
+        did::did_registry_worker_service::DidRegistryWorkerService,
         public_directory::index::PublicDirectoryService,
         public_directory::public_directory_worker_service::PublicDirectoryWorkerService,
     },
@@ -28,6 +29,7 @@ pub struct TrustedRegistry {
 }
 
 impl TrustedRegistry {
+    // TODO: ensure an invalid event doesn't make fail this sweep function
     pub async fn sweep(&self) -> anyhow::Result<()> {
         info!(
             "Sweeping trusted registry ... {:?} {:?}",
@@ -55,23 +57,26 @@ impl TrustedRegistry {
                 // seep cot
                 // sweep dids that matches with pulbic directory
                 // TODO: match them with Chain Of Trust also
-                let did_service = DidService::new();
-                let did_registry_worker_service = DidRegistryWorkerService::new();
-                match did_service
-                    .did_data_interface_service
-                    .find_all(
-                        &db,
-                        &self.public_directory.contract_address.to_string(),
-                        &self.public_directory.chain_id,
-                    )
-                    .await
+                match DidDataInterfaceService::find_all(
+                    &db,
+                    &self.public_directory.contract_address.to_string(),
+                    &self.public_directory.chain_id,
+                )
+                .await
                 {
                     Ok(dids) => {
                         for did in dids {
-                            match did_registry_worker_service.sweep(&db, &did.id).await {
-                                Ok(_) => {}
-                                Err(e) => panic!("{}", e),
-                            }
+                            match DidRegistryWorkerService::new(did.clone()).await {
+                                Ok(mut on_flight_did_registry_worker_service) => {
+                                    match on_flight_did_registry_worker_service.sweep(&db).await {
+                                        Ok(_) => {}
+                                        Err(e) => panic!("{}", e),
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("There was an error while trying to pick public keys from did {:?}; error is: {:?}", did.did ,e);
+                                }
+                            };
                         }
                     }
                     Err(e) => return Err(e.into()),

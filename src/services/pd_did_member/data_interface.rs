@@ -3,7 +3,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::Set;
 use uuid::Uuid;
 
-use crate::services::did::did_service::DidService;
+use crate::services::did::data_interface::DidDataInterfaceService;
 use crate::services::pd_member::data_interface::PdMemberDataInterfaceService;
 
 use crate::entities::entities::PdDidMemberEntity;
@@ -12,17 +12,12 @@ use crate::entities::models::PdDidMemberModel;
 
 pub struct PdDidMemberDataInterfaceService {
     pub pd_member_data_service: PdMemberDataInterfaceService,
-    pub did_service: DidService,
 }
 
 impl PdDidMemberDataInterfaceService {
-    pub fn new(
-        pd_member_data_service: PdMemberDataInterfaceService,
-        did_service: DidService,
-    ) -> Self {
+    pub fn new(pd_member_data_service: PdMemberDataInterfaceService) -> Self {
         Self {
             pd_member_data_service,
-            did_service,
         }
     }
 
@@ -43,12 +38,7 @@ impl PdDidMemberDataInterfaceService {
         did: &str,
         member_id: &i64,
     ) -> Result<Option<PdDidMemberModel>, sea_orm::DbErr> {
-        match self
-            .did_service
-            .did_data_interface_service
-            .get_did_from_database(db, did)
-            .await
-        {
+        match DidDataInterfaceService::get_did_from_database(db, did).await {
             Ok(u) => match u {
                 Some(found_did) => match self
                     .pd_member_data_service
