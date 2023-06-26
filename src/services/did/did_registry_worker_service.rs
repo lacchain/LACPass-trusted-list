@@ -210,11 +210,9 @@ impl DidRegistryWorkerService {
                         "Found public key for did {}, but params are unsupported",
                         self.did.did
                     );
-                    if let [asse, _, algorithm, encoding_method] =
-                        v.split('/').collect::<Vec<_>>().as_slice()
-                    {
-                        let is_candidate =
-                            asse == &"asse" && algorithm == &"jwk" && encoding_method == &"cbor";
+                    if let [asse, _, algorithm, _] = v.split('/').collect::<Vec<_>>().as_slice() {
+                        // omiting encoding method
+                        let is_candidate = asse == &"asse" && algorithm == &"jwk";
                         if !is_candidate {
                             info!("{}", error_message);
                             continue;
@@ -233,14 +231,24 @@ impl DidRegistryWorkerService {
                     continue;
                 }
             }
-            let pem_key = get_bytes_from_log(&did_attribute_changed_log, "value");
+            let jwk_bytes = get_bytes_from_log(&did_attribute_changed_log, "value");
+            match String::from_utf8(jwk_bytes.clone()) {
+                Ok(v) => v,
+                Err(err) => {
+                    info!(
+                        "Error decoding certificate ... skipping this registry: {:?}",
+                        err
+                    );
+                    continue;
+                }
+            };
             let valid_to = get_u64_from_log(&did_attribute_changed_log, "validTo");
             // let change_time = get_u64_from_log(&did_attribute_changed_log, "changeTime"); // Not needed for this logic
             prev_block = get_u64_from_log(&did_attribute_changed_log, "previousChange");
             let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
 
             let mut h = Sha3::keccak256();
-            h.input(&pem_key);
+            h.input(&jwk_bytes);
             let content_hash = h.result_str();
 
             match self
@@ -279,7 +287,7 @@ impl DidRegistryWorkerService {
                                 db,
                                 &self.did.id,
                                 &block,
-                                pem_key,
+                                jwk_bytes,
                                 &content_hash,
                                 &valid_to,
                                 is_compromised,

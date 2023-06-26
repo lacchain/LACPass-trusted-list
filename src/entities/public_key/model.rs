@@ -10,7 +10,7 @@ pub struct Model {
     pub id: Uuid,
     pub did_id: Uuid,
     pub block_number: i64,
-    pub pem_key: Vec<u8>,
+    pub jwk: Vec<u8>,
     #[sea_orm(column_type = "Text")]
     pub content_hash: String,
     pub exp: i64,

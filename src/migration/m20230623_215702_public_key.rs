@@ -23,7 +23,7 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(PublicKey::PemKey).binary().not_null())
+                    .col(ColumnDef::new(PublicKey::Jwk).binary().not_null())
                     .col(ColumnDef::new(PublicKey::ContentHash).string().not_null())
                     .col(ColumnDef::new(PublicKey::Exp).big_integer().not_null())
                     .col(
@@ -56,7 +56,7 @@ enum PublicKey {
     Id,
     DidId,
     BlockNumber,
-    PemKey,
+    Jwk,
     ContentHash,
     Exp,
     IsCompromised,
