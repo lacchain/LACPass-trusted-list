@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::SystemTime};
 
 use log::{debug, info};
 use sea_orm::DatabaseConnection;
@@ -354,7 +354,23 @@ impl PublicDirectoryWorkerService {
             let did = get_string_from_string_in_log(&member_changed_log, "did");
             prev_block = get_u64_from_log(&member_changed_log, "prevBlock");
             let transaction_timestamp = get_u64_from_log(&member_changed_log, "currentTimestap");
-            if transaction_timestamp == iat {
+            let current_time;
+            match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+                Ok(d) => {
+                    current_time = d.as_secs();
+                }
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
+            if transaction_timestamp == iat && exp <= current_time {
+                info!(
+                    "Skipping expired member: {} in Public Directory exp {:?}, current time {}",
+                    did, exp, current_time
+                );
+                continue;
+            }
+            if transaction_timestamp == iat && exp > current_time {
                 // issuance case scenario
                 info!("new member was added/updated {} {}", did, member_id);
                 let pd_member_id: Uuid;
