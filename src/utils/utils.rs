@@ -51,4 +51,12 @@ impl Utils {
             None => None,
         }
     }
+
+    pub fn trim_0x_from_hex_string(value: &str) -> String {
+        if value.starts_with("0x") {
+            value[2..].to_string()
+        } else {
+            value.to_owned()
+        }
+    }
 }

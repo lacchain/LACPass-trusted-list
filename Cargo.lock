@@ -2641,6 +2641,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30f30b2cf45d317def42af8542635e341fa4ae12fb0697a713346750ff426aa2"
 dependencies = [
  "rocket",
+ "rocket_okapi",
  "sea-orm-rocket-codegen",
 ]
 

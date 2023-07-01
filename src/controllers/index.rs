@@ -47,7 +47,8 @@ pub fn stage() -> AdHoc {
         // let custom_route_spec = (vec![], custom_openapi_spec());
         mount_endpoints_and_merged_docs! {
         building_rocket, "/api/v1".to_owned(), openapi_settings,
-            "/certificates" => get_routes_and_docs(&openapi_settings)
+            "/certificates" => get_routes_and_docs(&openapi_settings),
+            "/public-key" => get_routes_and_docs_for_public_key(&openapi_settings),
         };
         building_rocket
     })
@@ -57,6 +58,12 @@ pub fn get_routes_and_docs(settings: &OpenApiSettings) -> (Vec<rocket::Route>, O
     openapi_get_routes_spec![
         settings: crate::controllers::certificate_controller::verify_certificate
     ]
+}
+
+pub fn get_routes_and_docs_for_public_key(
+    settings: &OpenApiSettings,
+) -> (Vec<rocket::Route>, OpenApi) {
+    openapi_get_routes_spec![settings: crate::controllers::public_key_controller::get_all]
 }
 
 fn cors() -> Cors {

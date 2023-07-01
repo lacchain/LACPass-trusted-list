@@ -20,37 +20,54 @@ impl TrustedRegistries {
         s.set_start_up_and_period();
         s
     }
-    fn get_trusted_registries(&self) -> String {
+    fn get_trusted_registries() -> String {
         match Utils::get_env_or_err("TRUSTED_REGISTRIES") {
             Ok(s) => s,
             Err(_) => panic!("Please set TRUSTED_REGISTRIES environment variable"),
         }
     }
 
+    pub fn process_env_trusted_registries() -> Vec<TrustedRegistry> {
+        let binding = TrustedRegistries::get_trusted_registries();
+        let raw_trusted_registries = binding
+            .split("--")
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|tr_str| {
+                if let [index, pd, pd_cid, cot, cot_cid] =
+                    tr_str.split(",").collect::<Vec<_>>().as_slice()
+                {
+                    let pd = Utils::trim_0x_from_hex_string(pd);
+                    let cot = Utils::trim_0x_from_hex_string(cot);
+                    let public_directory_address = <[u8; 20]>::from_hex(pd)
+                        .expect("Invalid public directory contract address");
+                    let cot_address =
+                        <[u8; 20]>::from_hex(cot).expect("Invalid chain of trust contract address");
+                    let t1 = TrustedRegistry {
+                        index: index.to_string(),
+                        period_seconds: 400,
+                        start_up: 5,
+                        public_directory: Contract {
+                            chain_id: pd_cid.to_string(),
+                            contract_address: H160(public_directory_address),
+                        },
+                        chain_of_trust: Contract {
+                            chain_id: cot_cid.to_string(),
+                            contract_address: H160(cot_address),
+                        },
+                        retry_period: 0,
+                    };
+                    t1
+                } else {
+                    panic!("Error decoding trusted registry params from environment variables");
+                }
+            })
+            .collect::<Vec<_>>();
+        raw_trusted_registries
+    }
+
     fn set_trusted_registries(&mut self) -> () {
-        let _raw_trusted_registries = self.get_trusted_registries();
-        let pd_str = "609e1d1364d607b027E577e10AD97c571b9518c1"; //"BD74DE9059CD63AC60c3AaC25c92a798be8D18b9"; // "e647e8e076cffA10425c0C49aAaC1036a3b2ddB5"; // TODO: factor better error
-        let public_directory_address =
-            <[u8; 20]>::from_hex(pd_str).expect("Invalid public directory contract address");
-        let cot_str = "EBB6854aa875867f684dd1d2338eC20908039c67";
-        let cot_address =
-            <[u8; 20]>::from_hex(cot_str).expect("Invalid chain of trust contract address");
-        let t1 = TrustedRegistry {
-            period_seconds: 400,
-            start_up: 5,
-            public_directory: Contract {
-                chain_id: "648540".to_owned(),
-                contract_address: H160(public_directory_address),
-            },
-            chain_of_trust: Contract {
-                chain_id: "648540".to_owned(),
-                contract_address: H160(cot_address),
-            },
-            retry_period: 0,
-        };
-        let mut trs: Vec<TrustedRegistry> = Vec::new();
-        trs.push(t1);
-        self.registries = trs;
+        self.registries = TrustedRegistries::process_env_trusted_registries();
     }
 
     fn set_start_up_and_period(&mut self) -> () {

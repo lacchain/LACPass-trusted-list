@@ -11,6 +11,7 @@ use crate::{
         public_directory::index::PublicDirectoryService,
         public_directory::public_directory_worker_service::PublicDirectoryWorkerService,
     },
+    utils::utils::Utils,
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -21,6 +22,7 @@ pub struct Contract {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TrustedRegistry {
+    pub index: String,
     pub public_directory: Contract,
     pub chain_of_trust: Contract,
     pub period_seconds: u64,
@@ -59,12 +61,16 @@ impl TrustedRegistry {
                 // TODO: match them with Chain Of Trust also
                 match DidDataInterfaceService::find_all(
                     &db,
-                    &self.public_directory.contract_address.to_string(),
+                    &Utils::vec_u8_to_hex_string(
+                        self.public_directory.contract_address.as_bytes().to_vec(),
+                    )
+                    .unwrap(),
                     &self.public_directory.chain_id,
                 )
                 .await
                 {
                     Ok(dids) => {
+                        debug!("Dids to sweep {:?}", dids);
                         for did in dids {
                             match DidRegistryWorkerService::new(did.clone()).await {
                                 Ok(mut on_flight_did_registry_worker_service) => {

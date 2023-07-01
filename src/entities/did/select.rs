@@ -5,7 +5,6 @@ use crate::entities::entities::PdMemberEntity;
 use crate::entities::entities::PublicDirectoryEntity;
 use crate::entities::public_directory::model::Column as Pd;
 use sea_orm::sea_query::Expr;
-use sea_orm::sea_query::IntoCondition;
 use sea_orm::sea_query::Query;
 use sea_orm::{entity::*, query::*};
 
@@ -38,10 +37,16 @@ impl DidEntity {
                         .join(
                             JoinType::InnerJoin,
                             PublicDirectoryEntity,
-                            Expr::col((PublicDirectoryEntity, Pd::ContractAddress))
-                                .eq(public_directory_contract_address.clone())
-                                .and(Pd::ChainId.contains(&chain_id))
-                                .into_condition(),
+                            Expr::col((
+                                PdMemberEntity,
+                                crate::entities::pd_member::model::Column::PublicDirectoryId,
+                            ))
+                            .equals((PublicDirectoryEntity, Pd::Id))
+                            .and(
+                                Expr::col((PublicDirectoryEntity, Pd::ContractAddress))
+                                    .eq(public_directory_contract_address.clone())
+                                    .and(Pd::ChainId.contains(&chain_id)),
+                            ),
                         )
                         .to_owned(),
                 ),

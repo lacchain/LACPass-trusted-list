@@ -2,6 +2,7 @@ use crate::entities::entities::PublicDirectoryEntity;
 use crate::entities::models::PublicDirectoryActiveModel;
 use crate::entities::models::PublicDirectoryModel;
 use crate::services::trusted_registry::trusted_registry::Contract;
+use crate::utils::utils::Utils;
 use sea_orm::ActiveModelTrait;
 use sea_orm::DatabaseConnection;
 use sea_orm::Set;
@@ -21,7 +22,7 @@ impl DataInterfaceService {
         db: &DatabaseConnection,
     ) -> Result<Option<PublicDirectoryModel>, sea_orm::DbErr> {
         PublicDirectoryEntity::find_by_contract_address(
-            &self.params.contract_address.to_string(),
+            &Utils::vec_u8_to_hex_string(self.params.contract_address.as_bytes().to_vec()).unwrap(),
             &self.params.chain_id,
         )
         .one(db)
@@ -109,7 +110,10 @@ impl DataInterfaceService {
                 None => {
                     let db_registry = PublicDirectoryActiveModel {
                         id: Set(Uuid::new_v4()),
-                        contract_address: Set(self.params.contract_address.to_string()),
+                        contract_address: Set(Utils::vec_u8_to_hex_string(
+                            self.params.contract_address.as_bytes().to_vec(),
+                        )
+                        .unwrap()),
                         upper_block: Set(*contract_last_block as i64),
                         last_processed_block: Set(0),
                         last_block_saved: Set(0),

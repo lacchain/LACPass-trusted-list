@@ -1,8 +1,17 @@
+use crate::databases::pool::Db;
+use crate::dto::response::public_key_response_dto::PublicKeyResponseDto;
 use crate::entities::entities::PublicKeyEntity;
 use crate::entities::models::{PublicKeyActiveModel, PublicKeyModel};
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use crate::responses::error_message::ErrorMessage;
+use crate::responses::generic_response::Responses;
+use crate::responses::success_messages::SuccessMessage;
+use rocket::serde::json::Json;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, PaginatorTrait, Set};
+use sea_orm_rocket::Connection;
 use uuid::Uuid;
 pub struct PublicKeyService {}
+
+const DEFAULT_RESULTS_PER_PAGE: u64 = 10;
 
 impl PublicKeyService {
     pub fn new() -> PublicKeyService {
@@ -101,5 +110,85 @@ impl PublicKeyService {
             },
             Err(e) => return Err(e.into()),
         }
+    }
+
+    pub async fn get_all(
+        connection: Connection<'_, Db>,
+        page: Option<u64>,
+        page_size: Option<u64>,
+        public_directory_contract_address: &str,
+        chain_id: &str,
+    ) -> Responses<Json<SuccessMessage<PublicKeyResponseDto>>, Json<ErrorMessage<'static>>> {
+        let db = connection.into_inner();
+        let page = page.unwrap_or(1);
+        let page_size = page_size.unwrap_or(DEFAULT_RESULTS_PER_PAGE);
+        let trace_id: Uuid = Uuid::new_v4();
+        match page {
+            0 => {
+                let message = "'page' param cannot be zero";
+                error!("TRACE_ID: {}, DESCRIPTION: {}", trace_id, message);
+                return Responses::BadRequest(Json::from(ErrorMessage {
+                    message,
+                    trace_id: trace_id.to_string(),
+                }));
+            }
+            _ => {}
+        }
+        let paginator =
+            PublicKeyEntity::find_by_public_directory(public_directory_contract_address, chain_id)
+                .paginate(db, page_size.try_into().unwrap());
+        let num_pages;
+        match paginator.num_pages().await {
+            Ok(r) => {
+                num_pages = r;
+            }
+            Err(e) => {
+                let message = "Internal error when retrieving public keys";
+                error!("TRACE_ID: {}, DESCRIPTION: {}", trace_id, &e);
+                return Responses::BadRequest(Json::from(ErrorMessage {
+                    message,
+                    trace_id: trace_id.to_string(),
+                }));
+            }
+        }
+
+        let result = paginator
+            .fetch_page((page - 1).try_into().unwrap())
+            .await
+            .map(|r| {
+                r.into_iter()
+                    .map(|el| String::from_utf8(el.jwk))
+                    .filter_map(|el| match el {
+                        Ok(key) => Some(key),
+                        _ => None,
+                    })
+                    .map(|jwk_str| serde_json::from_str(&jwk_str))
+                    .filter_map(|el| match el {
+                        Ok(jwk) => Some(jwk),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            });
+
+        match result {
+            Ok(v) => {
+                return Responses::Sucess(Json::from(SuccessMessage {
+                    data: PublicKeyResponseDto {
+                        page,
+                        results_per_page: page_size,
+                        num_pages,
+                        keys: v,
+                    },
+                    trace_id: trace_id.to_string(),
+                }));
+            }
+            Err(e) => {
+                error!("TRACE_ID: {}, DESCRIPTION: {}", trace_id, &e);
+                return Responses::BadRequest(Json::from(ErrorMessage {
+                    message: "Internal error when retrieving public keys",
+                    trace_id: trace_id.to_string(),
+                }));
+            }
+        };
     }
 }

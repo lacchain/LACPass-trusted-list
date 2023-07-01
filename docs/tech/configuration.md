@@ -32,7 +32,7 @@ docker-compose -f docker-compose-dbs.yml --env-file .env.dev up
 cp .example.env.dev.sh .env.dev.sh
 chmod +x .env.dev.sh
 . ./.env.dev.sh
-RUST_LOG="debug,tower_http=trace" cargo run # RUST_LOG="debug,tower_http=trace" cargo watch -x run (if you have "watch" installed)
+RUST_LOG="info" cargo run # RUST_LOG="info" cargo watch -x run (if you have "watch" installed)
 ```
 
 ### Development with Docker

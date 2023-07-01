@@ -462,7 +462,7 @@ impl PublicDirectoryWorkerService {
             } else if transaction_timestamp == exp {
                 // revocation case scenario
                 // TODO: MemberChanged with currentTimestamp==exp -> remove the entity did and all its dids from the database
-                info!("a member was removed");
+                // info!("a member was removed");
             }
         }
         Ok(prev_block)

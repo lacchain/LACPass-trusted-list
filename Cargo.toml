@@ -27,6 +27,7 @@ rust-crypto = "0.2"
 
 [dependencies.sea-orm-rocket]
 version = "0.5.2"
+features = ["rocket_okapi"]
 
 [dependencies.sea-orm-migration]
 version = "0.11.3"
