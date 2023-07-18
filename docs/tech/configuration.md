@@ -18,6 +18,23 @@ LacPass Trusted List is the component that allows getting all public keys that a
 
 In order to run the app with Docker, you should install or update to the latest version, we recommend to install [Docker-Desktop](https://docs.docker.com/get-docker/) due to composer and some cool CLI-UI tools are included.
 
+## Running directly
+
+- Prepare databases
+
+```sh
+docker-compose -f docker-compose-dbs.yml --env-file .env.dev up
+```
+
+- Prepare environment variables and run
+
+```sh
+cp .example.env.dev.sh .env.dev.sh
+chmod +x .env.dev.sh
+. ./.env.dev.sh
+RUST_LOG="info" cargo run # RUST_LOG="info" cargo watch -x run (if you have "watch" installed)
+```
+
 ### Development with Docker
 
 The following commands will build and run all you need to start working on the base, without any other installation requirements. Important: if you already have postgres running locally, you'll need to kill the service before run `docker-compose up`.
@@ -87,3 +104,7 @@ After running the server you will find OpenAPI Specification here: `http://<host
 ## Code Quality
 
 TODO: SonarQube
+
+## Migrations and New Entities generation
+
+[Migration Stuffs](./migrations.md)
