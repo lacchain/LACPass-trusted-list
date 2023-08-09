@@ -203,6 +203,7 @@ impl DidRegistryWorkerService {
                 continue;
             }
             let name = get_bytes_from_log(&did_attribute_changed_log, "name");
+            prev_block = get_u64_from_log(&did_attribute_changed_log, "previousChange");
             match String::from_utf8(name) {
                 Ok(v) => {
                     info!("found new candidate public key for did {}", self.did.did);
@@ -244,7 +245,6 @@ impl DidRegistryWorkerService {
             };
             let valid_to = get_u64_from_log(&did_attribute_changed_log, "validTo");
             // let change_time = get_u64_from_log(&did_attribute_changed_log, "changeTime"); // Not needed for this logic
-            prev_block = get_u64_from_log(&did_attribute_changed_log, "previousChange");
             let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
 
             // TODO: make sure validTo >= x509 certificate expiration time -> think more about the logic to query the certificate ...
