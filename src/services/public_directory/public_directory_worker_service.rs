@@ -475,10 +475,10 @@ impl PublicDirectoryWorkerService {
                     },
                     Err(e) => return Err(e.into()),
                 }
-            } else if transaction_timestamp == exp {
-                // revocation case scenario
-                // TODO: MemberChanged with currentTimestamp==exp -> remove the entity did and all its dids from the database
-                // info!("a member was removed");
+            } else if transaction_timestamp == exp { // TODO: remove if exists
+                 // revocation case scenario
+                 // TODO: MemberChanged with currentTimestamp==exp -> remove the entity did and all its dids from the database
+                 // info!("a member was removed");
             }
         }
         Ok(prev_block)

@@ -247,6 +247,16 @@ impl DidRegistryWorkerService {
             prev_block = get_u64_from_log(&did_attribute_changed_log, "previousChange");
             let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
 
+            // TODO: make sure validTo >= x509 certificate expiration time -> think more about the logic to query the certificate ...
+            // current time
+            // if certificate_expiration_time > current_time -> add it
+            // add certificate_expiration_time field to pulic_key entity
+            // modify endpoint to filter with that certificate_expiration_time criterion
+            // for wallets, issuance date must not be greater than validTo (or equivalent in systems other than lacchain) and expiration time must be
+            // less than certificate_expiration_time
+            // keep in mind the other keys we are going to integrate with
+            // endpoint for CRL ~
+
             let mut h = Sha3::keccak256();
             h.input(&jwk_bytes);
             let content_hash = h.result_str();
