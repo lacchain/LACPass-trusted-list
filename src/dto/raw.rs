@@ -24,7 +24,7 @@ impl<'r> FromData<'r> for RawData<'r> {
         use Error::*;
 
         // Ensure the content type is correct before opening the data.
-        let person_ct = ContentType::new("application", "octet-stream");
+        let person_ct = ContentType::new("text", "plain");
         if req.content_type() != Some(&person_ct) {
             return Forward(data);
         }
@@ -67,7 +67,7 @@ impl<'r> OpenApiFromRequest<'r> for RawData<'r> {
 
 impl<'r> OpenApiFromData<'r> for RawData<'r> {
     fn request_body(gen: &mut OpenApiGenerator) -> rocket_okapi::Result<RequestBody> {
-        fn_request_body!(gen, RawData, "application/octet-stream") // establishes type for this
+        fn_request_body!(gen, RawData, "text/plain") // establishes type for this
     }
 }
 
