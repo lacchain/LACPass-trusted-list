@@ -4,7 +4,6 @@ use crate::responses::{
 use base45::decode;
 use cbor::Decoder;
 use cose::{
-    algs,
     keys::{self, CoseKey},
     message::CoseMessage,
 };
@@ -26,6 +25,7 @@ pub async fn get_pem_keys_by_country(_country_code: &str) -> anyhow::Result<Vec<
 pub async fn get_cose_keys_by_country_code(
     country_code: &str,
     track_id: Option<Uuid>,
+    signing_alg: &i32,
 ) -> anyhow::Result<Vec<CoseKey>> {
     let trace_id;
     if let Some(t_id) = track_id {
@@ -41,7 +41,7 @@ pub async fn get_cose_keys_by_country_code(
             );
             return Err(e);
         }
-        Ok(pem_keys) => match pem_to_cose_keys(pem_keys) {
+        Ok(pem_keys) => match pem_to_cose_keys(pem_keys, signing_alg) {
             Some(cose_keys) => Ok(cose_keys),
             None => {
                 let message = format!("No keys found for country code: {}", country_code);
@@ -54,7 +54,7 @@ pub async fn get_cose_keys_by_country_code(
 
 /// Returns cose keys according to cose-rust library format.
 /// If some key in the incoming "pem_keys" argument is not valid then it is just ommited.
-pub fn pem_to_cose_keys(pem_keys: Vec<String>) -> Option<Vec<CoseKey>> {
+pub fn pem_to_cose_keys(pem_keys: Vec<String>, signing_alg: &i32) -> Option<Vec<CoseKey>> {
     let cose_keys = pem_keys
         .into_iter()
         .filter_map(
@@ -79,7 +79,7 @@ pub fn pem_to_cose_keys(pem_keys: Vec<String>) -> Option<Vec<CoseKey>> {
                                             key.kty(keys::RSA);
                                             key.n(n);
                                             key.e(e);
-                                            key.alg(algs::PS256); // TODO: update from header
+                                            key.alg(*signing_alg);
                                             key.key_ops(vec![keys::KEY_OPS_VERIFY]);
                                             return Some(key);
                                         },
@@ -106,7 +106,7 @@ pub fn pem_to_cose_keys(pem_keys: Vec<String>) -> Option<Vec<CoseKey>> {
                                                     key.kty(keys::P_256);
                                                     key.x(xy.get(0).unwrap().to_owned());
                                                     key.y(xy.get(1).unwrap().to_owned());
-                                                    key.alg(algs::ES256);
+                                                    key.alg(*signing_alg);
                                                     key.key_ops(vec![keys::KEY_OPS_VERIFY]);
                                                     return Some(key);
                                                 },
@@ -219,54 +219,75 @@ pub async fn is_valid_message(
     country_code: String,
     trace_id: Uuid,
 ) -> Responses<Json<SuccessMessage<bool>>, Json<ErrorMessage<'static>>> {
-    match get_cose_keys_by_country_code(&country_code, Some(trace_id)).await {
-        Ok(cose_keys) => {
-            let result = cose_keys.into_iter().find(|key| {
-                match message.key(&key) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        debug!(
-                            "TRACE_ID: {}, DESCRIPTION (key attachment): {:?}",
-                            trace_id, &e
-                        );
-                        return false;
-                    }
-                };
-                match message.decode(None, None) {
-                    Ok(_) => {
-                        debug!("TRACE_ID: {}: Successful verification", trace_id);
-                        return true;
-                    }
-                    Err(e) => {
-                        debug!("TRACE_ID: {}, DESCRIPTION (validation): {:?}", trace_id, &e);
-                        return false;
+    match message.header.alg {
+        Some(alg) => {
+            match get_cose_keys_by_country_code(&country_code, Some(trace_id), &alg).await {
+                Ok(cose_keys) => {
+                    let result = cose_keys.into_iter().enumerate().find(|(idx, key)| {
+                        match message.key(&key) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                debug!(
+                                    "TRACE_ID: {}, DESCRIPTION (key attachment): {:?}",
+                                    trace_id, &e
+                                );
+                                return false;
+                            }
+                        };
+                        match message.decode(None, None) {
+                            Ok(_) => {
+                                debug!(
+                                    "TRACE_ID: {}: Successful verification in iteration #{}",
+                                    trace_id,
+                                    idx + 1
+                                );
+                                return true;
+                            }
+                            Err(e) => {
+                                debug!(
+                                    "TRACE_ID: {}, DESCRIPTION (validation failed in iteration #{}): {:?}",
+                                    trace_id,
+                                    idx + 1,
+                                    &e
+                                );
+                                return false;
+                            }
+                        }
+                    });
+                    match result {
+                        Some(_) => {
+                            return Responses::Sucess(Json::from(SuccessMessage {
+                                data: true,
+                                trace_id: trace_id.to_string(),
+                            }));
+                        }
+                        None => {
+                            debug!("TRACE_ID: {}, DESCRIPTION: No key matched", trace_id);
+                            return Responses::Sucess(Json::from(SuccessMessage {
+                                data: false,
+                                trace_id: trace_id.to_string(),
+                            }));
+                        }
                     }
                 }
-            });
-            match result {
-                Some(_) => {
-                    return Responses::Sucess(Json::from(SuccessMessage {
-                        data: true,
+                Err(e) => {
+                    debug!("TRACE_ID: {}, DESCRIPTION: {}", trace_id, &e);
+                    return Responses::BadRequest(Json::from(ErrorMessage {
+                        message: "Internal Error while getting keys",
                         trace_id: trace_id.to_string(),
                     }));
                 }
-                None => {
-                    debug!("TRACE_ID: {}, DESCRIPTION: No key matched", trace_id);
-                    return Responses::Sucess(Json::from(SuccessMessage {
-                        data: false,
-                        trace_id: trace_id.to_string(),
-                    }));
-                }
-            }
+            };
         }
-        Err(e) => {
-            debug!("TRACE_ID: {}, DESCRIPTION: {}", trace_id, &e);
+        None => {
+            let message = "No algoritm found for incoming message";
+            debug!("TRACE_ID: {}, DESCRIPTION ({})", trace_id, message);
             return Responses::BadRequest(Json::from(ErrorMessage {
                 message: "Internal Error while getting keys",
                 trace_id: trace_id.to_string(),
             }));
         }
-    };
+    }
 }
 
 pub async fn verify_base45(
@@ -402,19 +423,21 @@ pub(crate) fn get_p256_pem_test_keys() -> Option<Vec<String>> {
 }
 #[cfg(test)]
 mod tests {
+    use cose::algs;
+
     use super::*;
     // use std::println;
     #[test]
     fn get_cose_keys_containing_rsa_key_test() {
         let pem_keys = get_rsa_pem_test_keys().unwrap();
-        let cose_keys = pem_to_cose_keys(pem_keys).unwrap();
+        let cose_keys = pem_to_cose_keys(pem_keys, &algs::PS256).unwrap();
         assert_eq!(cose_keys.len(), 2)
     }
 
     #[test]
     fn get_cose_keys_containing_p256_key_test() {
         let pem_keys = get_p256_pem_test_keys().unwrap();
-        let cose_keys = pem_to_cose_keys(pem_keys).unwrap();
+        let cose_keys = pem_to_cose_keys(pem_keys, &algs::ES256).unwrap();
         assert_eq!(cose_keys.len(), 1);
     }
 }
