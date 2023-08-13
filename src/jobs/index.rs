@@ -19,6 +19,10 @@ impl JobManager {
                     loop {
                         match r.sweep().await {
                             Ok(_) => {
+                                ///////////////////////call redis and sincronize it ///////////////////////
+                                // TODO: implement
+                                // Note: Keys are saved in PEM format
+                                ///////////////////////////////////////////////////////////////////////////
                                 let message = format!(
                                     "{} {} {} {}",
                                     Paint::masked("🌀"),

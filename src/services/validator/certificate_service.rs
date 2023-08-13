@@ -15,38 +15,156 @@ use rocket::serde::json::Json;
 use std::io::Read;
 use uuid::Uuid;
 
-/// Todo: Get from public key base directory instead
-pub async fn get_keys_by_country_code(_country_code: &str) -> anyhow::Result<Vec<CoseKey>> {
-    let mut cose_keys = Vec::new();
+use super::certificate_error::CertificateError;
 
-    let mut v = Vec::new();
-    let n = base64_url::decode_to_vec(
-        "zxp1DiBxSi2wzZoVbuH9cZIc-td-LjQ3DxKOvRt32tUw-EnLAgiQPANhp_M0Rrsxty9mq9KXg59NrUrbe3BbyHxK-imQJXD6vs21wt_HPc2KgmJ9n9jz4DcqK-FZuvoucmsv_7oRZQO0Xhevd1FxzjiXhKyrb-Wf-dQsLwrdEug-xQG9D8ye6cvUHDMj0FgdkVFY8Jtf25i5t99i5u1LG_h2xzK3QDrs1lACzyVxEktY2Sss5_aLES-gIo1o8EXMi9FkFsi7OXJX8vmvfE4YR-gcpbnjE7vT8saDbv2SNFNotLW5P3gEvLVds02AD0dz8c8Hl5ny23K4C_xQzmGnQQ",
-        &mut v
-    ).unwrap().to_vec();
-    let lac_exp = "010001";
-    let e = hex::decode(lac_exp).unwrap();
-    let mut key = keys::CoseKey::new();
-    key.kty(keys::RSA);
-    key.n(n);
-    key.e(e);
-    key.alg(algs::PS256); // TODO: update from header
-    key.key_ops(vec![keys::KEY_OPS_VERIFY]);
-    cose_keys.push(key);
+pub async fn get_pem_keys_by_country(_country_code: &str) -> anyhow::Result<Vec<String>> {
+    // TODO: call redis and obtain stream of keys in pem format
+    get_pem_test_keys().await
+}
 
-    let create_pub_key = "ebaecb5ae07b0c75a5e564eef9228f936d90a6056fb36489dc19eec7b1b93340b38ee96bb193b5e81930ddc04eb1e4963e2697578bd0320eece7cbce7b3dba1f6c2fa0b323b008465e30a0c003bdcef4e430b9a08e69f478d5b93d3b0b47d78797190f36aefd316188ef39cfb66855732cee81c9157db7130ad9ebbcfcc0a9e5a2a369a49117cd2daea3abb8261a2f01a1e65fba0459022f82d49e5c0a7a8a2b9c8ba6c07de99ca6d56fba34b0de2d467f09f751182b0849d7a191460b860d676f44b181aa4be0b43a2bbcde05066d40ce067875429c1ff5a0d52de392a3abf87a9ca97565e2a6a1848f54e9ac0ce947c540acb2b8a6baca0a6d477cfc316469d48740f4a5fe20ec4749ab9180e62f4874fbaeec7a32c83eaded539d9f86b7bd3cf3205d73d251d383f7fb5476fc2673b44b98cfee94bfed247d7c20264b2b418cfe170d98b50c55c937dafa487c7e02f464762cd49d7809734716a33eaf89f33a7e6824a79b452515bcc6813cbf46e099836458c747fabbc03671789e7c8ff8134f6f2f0bc0505978e08e33dd7343fda2a547b953267858e623e0d8780991fb72ae59baa65d843525be73c5f0e4438bb641becbefe9745f77603236a8a2fd3f01210ebef7966b578e1b686f06754a0f2c64683cdeb51a23a46b2999f60cdbcec1c12722801b22883984c0f4dff73a0186f7c9947adebf9ea6d5538540e9e2c1";
-    let create_exp = "010001";
-    let n = hex::decode(create_pub_key).unwrap();
-    let e = hex::decode(create_exp).unwrap();
-    let mut key = keys::CoseKey::new();
-    key.kty(keys::RSA);
-    key.n(n);
-    key.e(e);
-    key.alg(algs::PS256); // TODO: update from header
-    key.key_ops(vec![keys::KEY_OPS_VERIFY]);
-    cose_keys.push(key);
+/// Returns cose keys according to cose-rust library format.
+pub async fn get_cose_keys_by_country_code(
+    country_code: &str,
+    track_id: Option<Uuid>,
+) -> anyhow::Result<Vec<CoseKey>> {
+    let trace_id;
+    if let Some(t_id) = track_id {
+        trace_id = t_id;
+    } else {
+        trace_id = Uuid::new_v4();
+    }
+    match get_pem_keys_by_country(country_code).await {
+        Err(e) => {
+            debug!(
+                "TRACE_ID: {}, DESCRIPTION: (pem keys retrieval), {:?}",
+                trace_id, &e
+            );
+            return Err(e);
+        }
+        Ok(pem_keys) => match pem_to_cose_keys(pem_keys) {
+            Some(cose_keys) => Ok(cose_keys),
+            None => {
+                let message = format!("No keys found for country code: {}", country_code);
+                debug!("DESCRIPTION: ({:?})", message);
+                return Err(anyhow::anyhow!(message));
+            }
+        },
+    }
+}
 
-    Ok(cose_keys)
+/// Returns cose keys according to cose-rust library format.
+/// If some key in the incoming "pem_keys" argument is not valid then it is just ommited.
+pub fn pem_to_cose_keys(pem_keys: Vec<String>) -> Option<Vec<CoseKey>> {
+    let cose_keys = pem_keys
+        .into_iter()
+        .filter_map(
+            |pem_key| match x509_certificate::X509Certificate::from_pem(pem_key.clone()) {
+                Err(e) => {
+                    debug!(
+                        "DESCRIPTION (Public Key Pem Decoding): Parsing to X509 Object failed: {:?} {:?}", pem_key, &e
+                    );
+                    None
+                }
+                Ok(v) => {
+                    match v.key_algorithm() {
+                        Some(alg) => {
+                            debug!("key_algorithm {:?}", alg);
+                            match alg {
+                                x509_certificate::KeyAlgorithm::Rsa => {
+                                    match v.rsa_public_key_data() {
+                                        Ok(rsa_public_key) => {
+                                            let n: Vec<u8> = rsa_public_key.clone().modulus.into_bytes().to_vec();
+                                            let e = rsa_public_key.clone().public_exponent.into_bytes().to_vec();
+                                            let mut key = keys::CoseKey::new();
+                                            key.kty(keys::RSA);
+                                            key.n(n);
+                                            key.e(e);
+                                            key.alg(algs::PS256); // TODO: update from header
+                                            key.key_ops(vec![keys::KEY_OPS_VERIFY]);
+                                            return Some(key);
+                                        },
+                                        Err(e) => {
+                                            debug!("DESCRIPTION (x509 rsa public key extraction): {:?}", &e); 
+                                            return None;
+                                        },
+                                    }
+                                },
+                                x509_certificate::KeyAlgorithm::Ecdsa(ecdsa_curve) => { // p-256 (according to https://github.com/WorldHealthOrganization/tng-participants-dev)
+                                    match ecdsa_curve {
+                                        x509_certificate::EcdsaCurve::Secp256r1 => {
+                                            let pub_key = v.public_key_data().to_owned();
+                                            let pub_key = pub_key.to_vec();
+                                            match get_x_y(pub_key) {
+                                                Err(e) => {
+                                                    debug!(
+                                                        "DESCRIPTION (x/y coordinate extraction): {:?}", &e
+                                                    );
+                                                    return None;
+                                                },
+                                                Ok(xy) => {
+                                                    let mut key = keys::CoseKey::new();
+                                                    key.kty(keys::P_256);
+                                                    key.x(xy.get(0).unwrap().to_owned());
+                                                    key.y(xy.get(1).unwrap().to_owned());
+                                                    key.alg(algs::ES256);
+                                                    key.key_ops(vec![keys::KEY_OPS_VERIFY]);
+                                                    return Some(key);
+                                                },
+                                            }
+                                        },
+                                        x509_certificate::EcdsaCurve::Secp384r1 => None,
+                                    }
+                                },
+                                x509_certificate::KeyAlgorithm::Ed25519 => None,
+                            }
+                        },
+                        None => {
+                            debug!(
+                                "DESCRIPTION (Public Key Pem decoding): No key algorithm found"
+                            );
+                            return None;
+                        }
+                    }
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+    Some(cose_keys)
+}
+
+fn get_x(pub_key: Vec<u8>) -> Result<Vec<u8>, CertificateError> {
+    if pub_key.is_empty() || pub_key.len() != 65 {
+        return Err(CertificateError::INVALID);
+    }
+    Ok((1..33)
+        .into_iter()
+        .map(|i| pub_key.get(i).unwrap().to_owned())
+        .collect::<Vec<_>>())
+}
+
+fn get_y(pub_key: Vec<u8>) -> Result<Vec<u8>, CertificateError> {
+    if pub_key.is_empty() || pub_key.len() != 65 {
+        return Err(CertificateError::INVALID);
+    }
+    Ok((33..65)
+        .into_iter()
+        .map(|i| pub_key.get(i).unwrap().to_owned())
+        .collect::<Vec<_>>())
+}
+
+fn get_x_y(pub_key: Vec<u8>) -> Result<Vec<Vec<u8>>, CertificateError> {
+    match get_x(pub_key.clone()) {
+        Ok(x) => match get_y(pub_key) {
+            Ok(y) => {
+                let mut r = Vec::new();
+                r.push(x);
+                r.push(y);
+                Ok(r)
+            }
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
 }
 
 /// Returns a country code according to urn:iso:std:iso:3166
@@ -101,7 +219,7 @@ pub async fn is_valid_message(
     country_code: String,
     trace_id: Uuid,
 ) -> Responses<Json<SuccessMessage<bool>>, Json<ErrorMessage<'static>>> {
-    match get_keys_by_country_code(&country_code).await {
+    match get_cose_keys_by_country_code(&country_code, Some(trace_id)).await {
         Ok(cose_keys) => {
             let result = cose_keys.into_iter().find(|key| {
                 match message.key(&key) {
@@ -204,5 +322,99 @@ pub async fn verify_base45(
                 trace_id: trace_id.to_string(),
             }))
         }
+    }
+}
+
+async fn get_pem_test_keys() -> anyhow::Result<Vec<String>> {
+    Ok(get_rsa_pem_test_keys().unwrap()) // secure since keys are pre-established- just for testing purposes
+}
+
+#[allow(dead_code)]
+fn get_rsa_pem_test_keys() -> Option<Vec<String>> {
+    // call redis and obtain stream of keys in pem format
+    let mut pem_keys = Vec::new();
+    let lacchain_cert = "-----BEGIN CERTIFICATE-----
+    MIIEfDCCAmSgAwIBAgIUKfVsK6TJIMYWxATipARQVKOgN5gwDQYJKoZIhvcNAQEN
+    BQAwSDELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRswGQYDVQQKDBJNaW5pc3Ry
+    eSBPZiBIZWFsdGgxDzANBgNVBAMMBkNBLU1vSDAeFw0yMzA4MDkxNDU1NDRaFw0y
+    NDEyMjExNDU1NDRaME8xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEhMB8GA1UE
+    CgwYRFNDIC0gTWluaXN0cnkgb2YgSGVhbHRoMRAwDgYDVQQDDAdEU0MtTW9IMIIB
+    IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzxp1DiBxSi2wzZoVbuH9cZIc
+    +td+LjQ3DxKOvRt32tUw+EnLAgiQPANhp/M0Rrsxty9mq9KXg59NrUrbe3BbyHxK
+    +imQJXD6vs21wt/HPc2KgmJ9n9jz4DcqK+FZuvoucmsv/7oRZQO0Xhevd1FxzjiX
+    hKyrb+Wf+dQsLwrdEug+xQG9D8ye6cvUHDMj0FgdkVFY8Jtf25i5t99i5u1LG/h2
+    xzK3QDrs1lACzyVxEktY2Sss5/aLES+gIo1o8EXMi9FkFsi7OXJX8vmvfE4YR+gc
+    pbnjE7vT8saDbv2SNFNotLW5P3gEvLVds02AD0dz8c8Hl5ny23K4C/xQzmGnQQID
+    AQABo1cwVTAJBgNVHRMEAjAAMB0GA1UdDgQWBBT+ZC6bTgAvVFzkplz/LvdH0oyf
+    wjALBgNVHQ8EBAMCB4AwHAYDVR0RBBUwE4cEAQIDBIILbXkuZG5zLm5hbWUwDQYJ
+    KoZIhvcNAQENBQADggIBAJctk6hY+/NPQ3V8WGNhnXOjqjLNrM+EBEe1NFETiyvX
+    oXe5bESF0GjrQxI5bpiBI3/GfTdI4CyDLLxi6YBTeegHwhPaY51H5AF3MMF7uSuQ
+    gzSyPMoXGbxhzsMbPw71Ecr2ZrhvFaLH3xB+3g4aUUeFDn8pr7eeS1MQoFpiFkYk
+    +cU44lvNt34DuASR3dEuqUvCDLt0z29ysfjNs5hxU12rYH8uj5vPRJMS1LdmdEsV
+    TlofKRUYeGfPzxw4vagVwEV+Ht/J8quSufwBD3aljHQhWFBGCYBSoKJrOes5jpT2
+    +NBtIGBK9Vq8rWG9myLSy3dpBQFRMUKlQn6ZsDrKspv0Wd2/2EF/DOD4mTl4e+bH
+    8E4gXA98gxTn/Eo47A/FUnLh1DDE9odVys/iJgXKakjDxXCPDBhBCso1OrC2d/uI
+    dCs88yZaMqn6ASj+JtHXnJMFedHLSMj9aIOTYn2SWznNUX+COu5uGYkepQhl6DU6
+    g9DbauiaVbZ+v5bH7OUr3SYOfr5GnnSD0b9MiqKC2iQEVt2yVZXsK31jMojKB1/0
+    siOe0PV+zx2e+Ke4efrqBEIrfH+m5Yv/ePuuFLC7WqrtPh3Kh38bCBR9JXmY6r6H
+    M3OBAZWKWffO2Pdjl2guuhqgwofeNALrfJeZEeGpNc2hPGZK6UNhpKB7F1QOiR2s
+    -----END CERTIFICATE-----";
+    let begin = "BEGIN CERTIFICATE";
+    let end = "END CERTIFICATE";
+    let mut lacchain_cert = lacchain_cert.replace("\n", "");
+    lacchain_cert.retain(|c| !c.is_whitespace());
+    let lacchain_cert = lacchain_cert
+        .replace("BEGINCERTIFICATE", begin)
+        .replace("ENDCERTIFICATE", end);
+    let create_cert = "-----BEGIN CERTIFICATE-----
+    MIIFXTCCA0WgAwIBAgIUXttAp46FGR4WOjpyWb8a2HeTwgMwDQYJKoZIhvcNAQELBQAwPjELMAkGA1UEBhMCQ0wxCzAJBgNVBAgMAk1UMREwDwYDVQQHDAhTYW50aWFnbzEPMA0GA1UECgwGQ3JlYXRlMB4XDTIzMDgwOTE0Mzc1OFoXDTI0MDgwODE0Mzc1OFowPjELMAkGA1UEBhMCQ0wxCzAJBgNVBAgMAk1UMREwDwYDVQQHDAhTYW50aWFnbzEPMA0GA1UECgwGQ3JlYXRlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA667LWuB7DHWl5WTu+SKPk22QpgVvs2SJ3Bnux7G5M0CzjulrsZO16Bkw3cBOseSWPiaXV4vQMg7s58vOez26H2wvoLMjsAhGXjCgwAO9zvTkMLmgjmn0eNW5PTsLR9eHlxkPNq79MWGI7znPtmhVcyzugckVfbcTCtnrvPzAqeWio2mkkRfNLa6jq7gmGi8BoeZfugRZAi+C1J5cCnqKK5yLpsB96Zym1W+6NLDeLUZ/CfdRGCsISdehkUYLhg1nb0SxgapL4LQ6K7zeBQZtQM4GeHVCnB/1oNUt45Kjq/h6nKl1ZeKmoYSPVOmsDOlHxUCssrimusoKbUd8/DFkadSHQPSl/iDsR0mrkYDmL0h0+67sejLIPq3tU52fhre9PPMgXXPSUdOD9/tUdvwmc7RLmM/ulL/tJH18ICZLK0GM/hcNmLUMVck32vpIfH4C9GR2LNSdeAlzRxajPq+J8zp+aCSnm0UlFbzGgTy/RuCZg2RYx0f6u8A2cXiefI/4E09vLwvAUFl44I4z3XND/aKlR7lTJnhY5iPg2HgJkftyrlm6pl2ENSW+c8Xw5EOLtkG+y+/pdF93YDI2qKL9PwEhDr73lmtXjhtobwZ1Sg8sZGg83rUaI6RrKZn2DNvOwcEnIoAbIog5hMD03/c6AYb3yZR63r+eptVThUDp4sECAwEAAaNTMFEwHQYDVR0OBBYEFCigJrDkS+j0cVzk6/j3xvYeNyMHMB8GA1UdIwQYMBaAFCigJrDkS+j0cVzk6/j3xvYeNyMHMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggIBAHvRztwPbdidBNc4zg9K5bbU/8coVwTb4qMMYSzFHcFLAqa1AShI5jvFoFpp98ILdVbg2R3e02DPtrw7SQn3Gb9xSEGO45/dymTDHW6Pez/Q5Q7QrPLIe5i2f1gIjsMGhtW4/tMvmT7qYCma85s3pY+Ea4TSS/jlcoJ6HW/KY74WeOxsSshWoeT6weogBtnLxTsHZOWuJuLpiQcNWh0SqExihwfEjN+CZQQzHFjHj/BcGXS0ckbjlUVPuRokIkfO4oOyQwfgbM/Gk+tQA9XnowANcP1i/CLEC/GwOggs2r9blnb94zqvy5BEMYhUQjNRnBudSrsBdkSxrjIyHVMBer3XuWaxjqsaaVOZkI8mtcKlIYj2F4SP78iFSHdRLWv/QF1pnjqtpQkl21rIQvdiOWDLiSloRwT94F3hGRSSBVSlw7E4eqv+YIaJ/49JOja2Ezr/XpYWfWUAZl8kL6cj7SDqtldG1T4Z29ukcRZ74aWh88MIBc0hswJCr5MPTn0jPaf+w3TRQJyJcPeB05pKmBrz9DN5baZgjAJLUlSHM5WJzS7vQj+7b4x98D1C31AEgB5+PU5dRdUdSPfqm6zetAeG1kEyjJDv0/0sDQERcmNjZolH+5pHnbJKF1elM0VjRSe6J8ZIxK2sYp9d9twCjr9XlC0l8lL5pQGYqKd6l2/F
+    -----END CERTIFICATE-----";
+    pem_keys.push(lacchain_cert.to_owned());
+    pem_keys.push(create_cert.to_owned());
+    Some(pem_keys)
+}
+
+#[allow(dead_code)]
+pub(crate) fn get_p256_pem_test_keys() -> Option<Vec<String>> {
+    let mut pem_keys = Vec::new();
+    let pem_cert = "-----BEGIN CERTIFICATE-----
+    MIIB8TCCAZagAwIBAgIUJKdl9T2GbSYmHns/gbZWFDFdLXQwCgYIKoZIzj0EAwQw
+    SDELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRswGQYDVQQKDBJNaW5pc3RyeSBP
+    ZiBIZWFsdGgxDzANBgNVBAMMBkNBLU1vSDAeFw0yMzA4MTMxNTU5NDRaFw0yNDEy
+    MjUxNTU5NDRaME8xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEhMB8GA1UECgwY
+    RFNDIC0gTWluaXN0cnkgb2YgSGVhbHRoMRAwDgYDVQQDDAdEU0MtTW9IMFkwEwYH
+    KoZIzj0CAQYIKoZIzj0DAQcDQgAELItVqrJgxpDlM2a7+XzsYZI/iDdsBOXlQw8v
+    ISHyMgmpCV6W449m76YeyobYQrlxTznalLZAi7dmnML1D9fkF6NXMFUwCQYDVR0T
+    BAIwADAdBgNVHQ4EFgQU3v2TKjW/tALEPuSquRYCMkwRMqIwCwYDVR0PBAQDAgeA
+    MBwGA1UdEQQVMBOHBAECAwSCC215LmRucy5uYW1lMAoGCCqGSM49BAMEA0kAMEYC
+    IQCpVLj/D8Ai+6Z77118Q1mYDaf28FnjdEfzle+yflguPQIhAPio4utr6irjvxlS
+    mLPoZq8IqTcacI4Dqsuyu0xk8xH+
+    -----END CERTIFICATE-----";
+    let begin = "BEGIN CERTIFICATE";
+    let end = "END CERTIFICATE";
+    let mut pem_cert = pem_cert.replace("\n", "");
+    pem_cert.retain(|c| !c.is_whitespace());
+    let pem_cert = pem_cert
+        .replace("BEGINCERTIFICATE", begin)
+        .replace("ENDCERTIFICATE", end);
+    pem_keys.push(pem_cert.to_owned());
+    Some(pem_keys)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use std::println;
+    #[test]
+    fn get_cose_keys_containing_rsa_key_test() {
+        let pem_keys = get_rsa_pem_test_keys().unwrap();
+        let cose_keys = pem_to_cose_keys(pem_keys).unwrap();
+        assert_eq!(cose_keys.len(), 2)
+    }
+
+    #[test]
+    fn get_cose_keys_containing_p256_key_test() {
+        let pem_keys = get_p256_pem_test_keys().unwrap();
+        let cose_keys = pem_to_cose_keys(pem_keys).unwrap();
+        assert_eq!(cose_keys.len(), 1);
     }
 }

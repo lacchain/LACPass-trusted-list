@@ -7,7 +7,7 @@ use crate::dto::raw::RawData;
 use crate::responses::error_message::ErrorMessage;
 use crate::responses::generic_response::Responses;
 use crate::responses::success_messages::SuccessMessage;
-use crate::services::certificate_service::verify_base45;
+use crate::services::validator::certificate_service::verify_base45;
 
 /// # Verify base45 HC1 health certificates
 #[openapi(tag = "Verify From Base45")]
