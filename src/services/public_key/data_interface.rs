@@ -1,10 +1,11 @@
 use crate::databases::pool::Db;
-use crate::dto::response::public_key_response_dto::PublicKeyResponseDto;
+use crate::dto::response::public_key_response_dto::{PublicKeyCoreResponse, PublicKeyResponseDto};
 use crate::entities::entities::PublicKeyEntity;
 use crate::entities::models::{PublicKeyActiveModel, PublicKeyModel};
 use crate::responses::error_message::ErrorMessage;
 use crate::responses::generic_response::Responses;
 use crate::responses::success_messages::SuccessMessage;
+use log::info;
 use rocket::serde::json::Json;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, PaginatorTrait, Set};
 use sea_orm_rocket::Connection;
@@ -135,8 +136,8 @@ impl PublicKeyService {
             _ => {}
         }
         let paginator =
-            PublicKeyEntity::find_by_public_directory(public_directory_contract_address, chain_id)
-                .paginate(db, page_size.try_into().unwrap());
+            PublicKeyEntity::find_with_country(public_directory_contract_address, chain_id)
+                .paginate(db, page_size);
         let num_pages;
         match paginator.num_pages().await {
             Ok(r) => {
@@ -157,27 +158,35 @@ impl PublicKeyService {
             .await
             .map(|r| {
                 r.into_iter()
-                    .map(|el| String::from_utf8(el.jwk))
-                    .filter_map(|el| match el {
-                        Ok(key) => Some(key),
+                    .map(|el| {
+                        return (String::from_utf8(el.jwk), el.country_code);
+                    })
+                    .filter_map(|el| match el.0 {
+                        Ok(key) => Some((key, el.1)),
                         _ => None,
                     })
-                    .map(|jwk_str| serde_json::from_str(&jwk_str))
-                    .filter_map(|el| match el {
-                        Ok(jwk) => Some(jwk),
-                        _ => None,
+                    .map(|(jwk_str, country_code)| {
+                        let parsed = serde_json::from_str(&jwk_str);
+                        (parsed, country_code)
+                    })
+                    .filter_map(|el| match el.0 {
+                        Ok(jwk) => Some(PublicKeyCoreResponse { country: el.1, jwk }),
+                        Err(e) => {
+                            info!("Error parsing {:?}", &e);
+                            return None;
+                        }
                     })
                     .collect::<Vec<_>>()
             });
 
         match result {
-            Ok(v) => {
+            Ok(keys) => {
                 return Responses::Sucess(Json::from(SuccessMessage {
                     data: PublicKeyResponseDto {
                         page,
                         results_per_page: page_size,
                         num_pages,
-                        keys: v,
+                        keys,
                     },
                     trace_id: trace_id.to_string(),
                 }));

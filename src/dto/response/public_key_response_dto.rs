@@ -7,7 +7,14 @@ pub struct PublicKeyResponseDto {
     pub page: u64,
     pub results_per_page: u64,
     pub num_pages: u64,
-    pub keys: Vec<Jwk>,
+    pub keys: Vec<PublicKeyCoreResponse>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(crate = "rocket::serde")]
+pub struct PublicKeyCoreResponse {
+    pub country: String,
+    pub jwk: Jwk,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]

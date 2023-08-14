@@ -1,6 +1,7 @@
 use rocket::serde::{Deserialize, Serialize};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
+// use
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -16,6 +17,15 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "crate::entities::entities::PublicKeyEntity")]
+    PublicKey,
+}
+
+impl Related<crate::entities::public_key::model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::PublicKey.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
