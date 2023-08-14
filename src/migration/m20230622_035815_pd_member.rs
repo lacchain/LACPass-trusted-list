@@ -31,6 +31,12 @@ impl MigrationTrait for Migration {
                             .uuid()
                             .not_null(),
                     )
+                    .col(
+                        ColumnDef::new(PdMember::CountryCode)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("public_directory_id")
@@ -66,4 +72,5 @@ pub(crate) enum PdMember {
     Exp,
     PublicDirectoryId,
     BlockNumber,
+    CountryCode,
 }

@@ -12,6 +12,7 @@ pub struct Model {
     pub exp: i64,
     pub public_directory_id: Uuid,
     pub block_number: i64,
+    pub country_code: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

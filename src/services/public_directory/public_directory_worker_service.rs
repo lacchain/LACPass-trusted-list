@@ -10,8 +10,10 @@ use crate::services::{
     pd_did_member::data_interface::PdDidMemberDataInterfaceService,
     pd_member::data_interface::PdMemberDataInterfaceService,
     public_directory::index::PublicDirectoryService,
-    web3::utils::{get_string_from_string_in_log, get_u64_from_log},
+    web3::utils::{get_bytes_from_log, get_string_from_string_in_log, get_u64_from_log},
 };
+
+use super::{country_code::COUNTRY_CODES, member_data::MemberData};
 
 pub struct PublicDirectoryWorkerService {
     pub pd_did_member_data_interface_service: PdDidMemberDataInterfaceService,
@@ -355,6 +357,54 @@ impl PublicDirectoryWorkerService {
             prev_block = get_u64_from_log(&member_changed_log, "prevBlock");
             let transaction_timestamp = get_u64_from_log(&member_changed_log, "currentTimestap");
             let current_time;
+            let raw_data = get_bytes_from_log(&member_changed_log, "rawData");
+            let member_data_string: String;
+            match String::from_utf8(raw_data.clone()) {
+                Ok(v) => member_data_string = v,
+                Err(err) => {
+                    info!(
+                        "Error decoding raw data for did {} ... skipping this registry: {:?}",
+                        did, err
+                    );
+                    continue;
+                }
+            };
+            let member_data: MemberData;
+            match serde_json::from_str(&member_data_string) {
+                Ok(v) => {
+                    member_data = v;
+                }
+                Err(e) => {
+                    info!(
+                        "Error decoding raw data for did {} ... skipping this registry: {:?}",
+                        did, &e
+                    );
+                    continue;
+                }
+            };
+            let country_code;
+            match member_data.identification_data {
+                Some(identification_data) => {
+                    country_code = identification_data.country_code.to_owned();
+                    match COUNTRY_CODES.get(&country_code as &str) {
+                        Some(_v) => {}
+                        None => {
+                            info!(
+                                "PublicDirectory: invalid country code: {:?} ... skipping this registry: {:?}",
+                                did, country_code.clone()
+                            );
+                            continue;
+                        }
+                    }
+                }
+                None => {
+                    info!(
+                        "PublicDirectory: 'identificationData' not found in incoming raw_data ... skipping this registry: {:?}",
+                        did
+                    );
+                    continue;
+                }
+            }
             match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
                 Ok(d) => {
                     current_time = d.as_secs();
@@ -410,6 +460,7 @@ impl PublicDirectoryWorkerService {
                                     &(member_id as i64),
                                     &(exp as i64),
                                     &(*block as i64),
+                                    country_code.to_string(),
                                 )
                                 .await
                             {
