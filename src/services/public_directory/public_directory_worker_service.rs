@@ -13,7 +13,7 @@ use crate::services::{
     web3::utils::{get_bytes_from_log, get_string_from_string_in_log, get_u64_from_log},
 };
 
-use super::{country_code::COUNTRY_CODES, member_data::MemberData};
+use super::{country_code::ALPHA3_TO_ALPHA2, member_data::MemberData};
 
 pub struct PublicDirectoryWorkerService {
     pub pd_did_member_data_interface_service: PdDidMemberDataInterfaceService,
@@ -382,12 +382,14 @@ impl PublicDirectoryWorkerService {
                     continue;
                 }
             };
-            let country_code;
+            let mut country_code;
             match member_data.identification_data {
                 Some(identification_data) => {
                     country_code = identification_data.country_code.to_owned();
-                    match COUNTRY_CODES.get(&country_code as &str) {
-                        Some(_v) => {}
+                    match ALPHA3_TO_ALPHA2.get(&country_code as &str) {
+                        Some(alhpa2_country_code) => {
+                            country_code = alhpa2_country_code.to_string();
+                        }
                         None => {
                             info!(
                                 "PublicDirectory: invalid country code: {:?} ... skipping this registry: {:?}",
