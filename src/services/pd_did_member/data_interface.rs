@@ -3,7 +3,6 @@ use sea_orm::DatabaseConnection;
 use sea_orm::Set;
 use uuid::Uuid;
 
-use crate::services::did::data_interface::DidDataInterfaceService;
 use crate::services::pd_member::data_interface::PdMemberDataInterfaceService;
 
 use crate::entities::entities::PdDidMemberEntity;
@@ -30,35 +29,6 @@ impl PdDidMemberDataInterfaceService {
         PdDidMemberEntity::find_all(public_directory_contract_address, chain_id)
             .all(db)
             .await
-    }
-
-    pub async fn get_pd_did_member(
-        &self,
-        db: &DatabaseConnection,
-        did: &str,
-        member_id: &i64,
-    ) -> Result<Option<PdDidMemberModel>, sea_orm::DbErr> {
-        match DidDataInterfaceService::get_did_from_database(db, did).await {
-            Ok(u) => match u {
-                Some(found_did) => match self
-                    .pd_member_data_service
-                    .get_pd_member_from_database(db, member_id)
-                    .await
-                {
-                    Ok(u) => match u {
-                        Some(found_pd_member) => {
-                            PdDidMemberEntity::find_pd_did_member(found_did.id, found_pd_member.id)
-                                .one(db)
-                                .await
-                        }
-                        None => return Ok(None),
-                    },
-                    Err(e) => return Err(e.into()),
-                },
-                None => return Ok(None),
-            },
-            Err(e) => return Err(e.into()),
-        }
     }
 
     pub async fn get_pd_did_member_by_ids(

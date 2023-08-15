@@ -2,6 +2,7 @@ use crate::{
     entities::models::DidModel,
     services::{
         did::data_interface::DidDataInterfaceService,
+        pd_member::data_interface::PdMemberDataInterfaceService,
         public_key::data_interface::PublicKeyService,
         trusted_registry::trusted_registry::Contract,
         web3::utils::{
@@ -12,6 +13,7 @@ use crate::{
 use crypto::{digest::Digest, sha3::Sha3};
 use log::{debug, info};
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
 use web3::ethabi::Log;
 
 use super::index::{DidLac1, DidService};
@@ -21,27 +23,50 @@ pub struct DidRegistryWorkerService {
     public_key_service: PublicKeyService,
     did: DidModel,
     did_params: DidLac1,
+    country_code: String,
 }
 
 impl DidRegistryWorkerService {
-    pub async fn new(did: DidModel) -> anyhow::Result<Self> {
+    pub async fn new(db: &DatabaseConnection, did: DidModel) -> anyhow::Result<Self> {
         match DidService::decode_did(&did.did) {
             Ok(did_params) => {
                 let params = Contract {
                     chain_id: did_params.chain_id.to_string(),
                     contract_address: did_params.did_registry_address,
                 };
-                match DidService::new(params).await {
-                    Ok(did_service) => Ok(Self {
-                        did_service,
-                        public_key_service: PublicKeyService::new(),
-                        did,
-                        did_params,
-                    }),
-                    Err(e) => return Err(e.into()),
+                match Self::resolve_country_code_by_public_directory(db, did.id).await {
+                    Ok(cc) => match DidService::new(params).await {
+                        Ok(did_service) => Ok(Self {
+                            did_service,
+                            public_key_service: PublicKeyService::new(),
+                            did,
+                            did_params,
+                            country_code: cc,
+                        }),
+                        Err(e) => return Err(e.into()),
+                    },
+                    Err(e) => {
+                        return Err(e.into());
+                    }
                 }
             }
             Err(e) => return Err(e.into()),
+        }
+    }
+
+    pub async fn resolve_country_code_by_public_directory(
+        db: &DatabaseConnection,
+        did_id: Uuid,
+    ) -> anyhow::Result<String> {
+        match PdMemberDataInterfaceService::find_one_by_did(db, did_id).await {
+            Ok(pd_member_wrap) => match pd_member_wrap {
+                Some(pd_member) => Ok(pd_member.country_code),
+                None => Err(anyhow::anyhow!(format!(
+                    "Public Directory member with id {:?} does not exist",
+                    did_id
+                ))),
+            },
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -267,29 +292,37 @@ impl DidRegistryWorkerService {
                 .await
             {
                 Ok(wrapped) => match wrapped {
-                    Some(found_public_key) => {
-                        if (found_public_key.block_number as u64) < *block {
-                            match self
-                                .public_key_service
-                                .update_public_key(
-                                    db,
-                                    &found_public_key.id,
-                                    Some(*block),
-                                    Some(valid_to),
-                                    Some(is_compromised),
-                                )
-                                .await
-                            {
-                                Ok(_) => {
-                                    info!(
-                                        "Updated public key with id: {:} for did: {}",
-                                        found_public_key.id, self.did.did
-                                    );
+                    Some(found_public_key) => match found_public_key.block_number {
+                        Some(block_number) => {
+                            if (block_number as u64) < *block {
+                                match self
+                                    .public_key_service
+                                    .update_public_key(
+                                        db,
+                                        &found_public_key.id,
+                                        Some(*block),
+                                        Some(valid_to),
+                                        Some(is_compromised),
+                                    )
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        info!(
+                                            "Updated public key with id: {:} for did: {}",
+                                            found_public_key.id, self.did.did
+                                        );
+                                    }
+                                    Err(e) => return Err(e.into()),
                                 }
-                                Err(e) => return Err(e.into()),
                             }
                         }
-                    }
+                        None => {
+                            info!(
+                                "Found public key but no block number was found for {}",
+                                self.did.id
+                            ); // since not found then prev block will be zero
+                        }
+                    },
                     None => {
                         match self
                             .public_key_service
@@ -301,6 +334,7 @@ impl DidRegistryWorkerService {
                                 &content_hash,
                                 &valid_to,
                                 is_compromised,
+                                &self.country_code,
                             )
                             .await
                         {

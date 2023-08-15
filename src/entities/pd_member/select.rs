@@ -1,9 +1,11 @@
 use super::*;
+use crate::entities::entities::PdDidMemberEntity;
 use crate::entities::entities::PdMemberEntity;
 use crate::entities::entities::PublicDirectoryEntity;
 use crate::entities::public_directory::model::Column as Pd;
 use sea_orm::sea_query::Expr;
 use sea_orm::sea_query::IntoCondition;
+use sea_orm::sea_query::Query;
 use sea_orm::{entity::*, query::*};
 use uuid::Uuid;
 
@@ -38,5 +40,25 @@ impl PdMemberEntity {
                     .into(),
             )
             .filter(model::Column::MemberId.eq(*member_id))
+    }
+
+    /// this is a non-simple query that hits PdDidMemberEntity as part of the query
+    pub fn find_by_did(did_id: Uuid) -> Select<Self> {
+        Self::find().filter(
+            Condition::any().add(
+                model::Column::Id.in_subquery(
+                    Query::select()
+                        .column(crate::entities::pd_did_member::model::Column::PdMemberId)
+                        .from(PdDidMemberEntity)
+                        .join(
+                            JoinType::InnerJoin,
+                            PdMemberEntity,
+                            Expr::col(crate::entities::pd_did_member::model::Column::DidId)
+                                .eq(did_id),
+                        )
+                        .to_owned(),
+                ),
+            ),
+        )
     }
 }

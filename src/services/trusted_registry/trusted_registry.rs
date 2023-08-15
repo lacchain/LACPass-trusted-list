@@ -72,7 +72,7 @@ impl TrustedRegistry {
                     Ok(dids) => {
                         debug!("Dids to sweep {:?}", dids);
                         for did in dids {
-                            match DidRegistryWorkerService::new(did.clone()).await {
+                            match DidRegistryWorkerService::new(&db, did.clone()).await {
                                 Ok(mut on_flight_did_registry_worker_service) => {
                                     match on_flight_did_registry_worker_service.sweep(&db).await {
                                         Ok(_) => {}

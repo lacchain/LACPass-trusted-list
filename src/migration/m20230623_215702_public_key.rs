@@ -17,20 +17,17 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(PublicKey::DidId).uuid().not_null())
-                    .col(
-                        ColumnDef::new(PublicKey::BlockNumber)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(PublicKey::CountryCode).string().not_null())
+                    .col(ColumnDef::new(PublicKey::ContentHash).string().not_null()) // TODO: Add fhir url
+                    .col(ColumnDef::new(PublicKey::DidId).uuid().null())
                     .col(ColumnDef::new(PublicKey::Jwk).binary().not_null())
-                    .col(ColumnDef::new(PublicKey::ContentHash).string().not_null())
                     .col(ColumnDef::new(PublicKey::Exp).big_integer().not_null())
                     .col(
                         ColumnDef::new(PublicKey::IsCompromised)
                             .boolean()
                             .default(false),
                     )
+                    .col(ColumnDef::new(PublicKey::BlockNumber).big_integer().null())
                     .index(
                         Index::create()
                             .name("content_hash_did_id")
@@ -53,6 +50,7 @@ impl MigrationTrait for Migration {
 #[derive(Iden)]
 enum PublicKey {
     Table,
+    CountryCode,
     Id,
     DidId,
     BlockNumber,

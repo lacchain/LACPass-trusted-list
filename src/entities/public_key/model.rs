@@ -8,13 +8,14 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub did_id: Uuid,
-    pub block_number: i64,
-    pub jwk: Vec<u8>,
+    pub country_code: String,
     #[sea_orm(column_type = "Text")]
     pub content_hash: String,
-    pub exp: i64,
-    pub is_compromised: bool,
+    pub jwk: Vec<u8>,
+    pub exp: Option<i64>,
+    pub is_compromised: Option<bool>,
+    pub did_id: Option<Uuid>,
+    pub block_number: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

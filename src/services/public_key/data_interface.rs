@@ -47,15 +47,17 @@ impl PublicKeyService {
         content_hash: &str,
         exp: &u64,
         is_compromised: bool,
+        country_code: &str,
     ) -> anyhow::Result<PublicKeyModel> {
         let db_registry = PublicKeyActiveModel {
             id: Set(Uuid::new_v4()),
-            did_id: Set(*did_id),
-            block_number: Set(*block_number as i64),
+            did_id: Set(Some(*did_id)),
+            block_number: Set(Some(*block_number as i64)),
             jwk: Set(jwk),
             content_hash: Set(content_hash.to_owned()),
-            exp: Set(*exp as i64),
-            is_compromised: Set(is_compromised),
+            exp: Set(Some(*exp as i64)),
+            is_compromised: Set(Some(is_compromised)),
+            country_code: Set(country_code.to_owned()),
         };
         match db_registry.insert(db).await {
             Ok(res) => return Ok(res),
@@ -79,19 +81,19 @@ impl PublicKeyService {
                     let mut s: PublicKeyActiveModel = v.into();
                     match block_number {
                         Some(v) => {
-                            s.block_number = Set(v as i64);
+                            s.block_number = Set(Some(v as i64));
                         }
                         None => {}
                     }
                     match exp {
                         Some(v) => {
-                            s.exp = Set(v as i64);
+                            s.exp = Set(Some(v as i64));
                         }
                         None => {}
                     }
                     match is_compromised {
                         Some(v) => {
-                            s.is_compromised = Set(v);
+                            s.is_compromised = Set(Some(v));
                         }
                         None => {}
                     }
@@ -136,7 +138,7 @@ impl PublicKeyService {
             _ => {}
         }
         let paginator =
-            PublicKeyEntity::find_with_country(public_directory_contract_address, chain_id)
+            PublicKeyEntity::find_by_public_directory(public_directory_contract_address, chain_id)
                 .paginate(db, page_size);
         let num_pages;
         match paginator.num_pages().await {

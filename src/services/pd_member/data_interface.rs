@@ -108,4 +108,11 @@ impl PdMemberDataInterfaceService {
             Err(e) => return Err(e.into()),
         }
     }
+
+    pub async fn find_one_by_did(
+        db: &DatabaseConnection,
+        did_id: Uuid,
+    ) -> Result<Option<PdMemberModel>, sea_orm::DbErr> {
+        PdMemberEntity::find_by_did(did_id).one(db).await
+    }
 }
