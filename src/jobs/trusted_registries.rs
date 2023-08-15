@@ -81,4 +81,27 @@ impl TrustedRegistries {
             })
             .collect::<Vec<_>>();
     }
+
+    pub fn get_trusted_registry_by_index() -> TrustedRegistry {
+        let trusted_registries = TrustedRegistries::process_env_trusted_registries();
+        let index: String;
+        match Utils::get_env_or_err("TRUSTED_REGISTRIES_INDEX_PUBLIC_KEYS_TO_EXPOSE") {
+            Ok(s) => index = s,
+            Err(e) => {
+                error!("{}", e);
+                panic!(
+                    "Please set TRUSTED_REGISTRIES_INDEX_PUBLIC_KEYS_TO_EXPOSE environment variable"
+                );
+            }
+        }
+        let tr = trusted_registries
+            .into_iter()
+            .filter(|e| e.index == index)
+            .collect::<Vec<_>>();
+        if tr.len() != 1 {
+            let message = format!("TRUSTED_REGISTRIES_INDEX_PUBLIC_KEYS_TO_EXPOSE '{:?}' was (not found/or more than one) with the pointed index in TRUSTED_REGISTRIES", index);
+            panic!("{}", message);
+        };
+        tr[0].clone()
+    }
 }
