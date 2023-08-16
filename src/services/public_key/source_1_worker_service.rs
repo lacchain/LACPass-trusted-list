@@ -4,7 +4,7 @@ use reqwest::Client;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 
-use crate::services::x509::x509_utils::X509Utils;
+use crate::services::{public_directory::country_code, x509::x509_utils::X509Utils};
 
 use super::data_interface::PublicKeyService;
 
@@ -99,6 +99,15 @@ impl ExternalSource1WorkerService {
                             }
                         })
                         .filter_map(|(jwk, key)|  {
+                            match country_code::ALPHA2_TO_ALPHA3.get(&key.country) {
+                                Some(_) => {},
+                                None => {
+                                    let message = format!("Got error when validating country code {}", 
+                                    key.country.clone());
+                                    debug!("{}", message);
+                                    return None;
+                                },
+                            }
                             // extract pem hash
                             let mut h = Sha3::keccak256();
                             match jwk.x5c.clone() {
@@ -180,7 +189,7 @@ impl ExternalSource1WorkerService {
                         {
                             Ok(_) => {
                                 let message = format!(
-                                    "Successfully added certificate for country {}",
+                                    "Successfully performed certificate update for country {}",
                                     country_code
                                 );
                                 info!("{}", message);
