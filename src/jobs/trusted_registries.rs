@@ -27,6 +27,39 @@ impl TrustedRegistries {
         }
     }
 
+    /// index must start from "1"
+    fn get_external_source_1_at_index(index: &str) -> Option<String> {
+        match index.parse::<usize>() {
+            Ok(v) => {
+                if v == 0 as usize {
+                    panic!("Invalid index passed to get_external_source_1");
+                }
+            }
+            Err(e) => panic!("Error while pasing index: {}", e),
+        };
+        match Utils::get_env_or_err("EXTERNAL_SOURCE_1") {
+            Ok(s) => {
+                let found = s.clone();
+                found
+                    .split("--")
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .find_map(|el| {
+                        if let [candidate_index, url] = el.split(",").collect::<Vec<_>>().as_slice()
+                        {
+                            if **candidate_index == *index {
+                                return Some((**url).to_owned());
+                            }
+                            None
+                        } else {
+                            return None;
+                        }
+                    })
+            }
+            Err(_) => None, // since it is not striclty required just returning NONE
+        }
+    }
+
     pub fn process_env_trusted_registries() -> Vec<TrustedRegistry> {
         let binding = TrustedRegistries::get_trusted_registries();
         let raw_trusted_registries = binding
@@ -43,6 +76,8 @@ impl TrustedRegistries {
                         .expect("Invalid public directory contract address");
                     let cot_address =
                         <[u8; 20]>::from_hex(cot).expect("Invalid chain of trust contract address");
+                    let external_source_1_url =
+                        TrustedRegistries::get_external_source_1_at_index(index);
                     let t1 = TrustedRegistry {
                         index: index.to_string(),
                         period_seconds: 400,
@@ -56,6 +91,7 @@ impl TrustedRegistries {
                             contract_address: H160(cot_address),
                         },
                         retry_period: 0,
+                        external_source_1_url,
                     };
                     t1
                 } else {

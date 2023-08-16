@@ -10,6 +10,7 @@ use crate::{
         did::did_registry_worker_service::DidRegistryWorkerService,
         public_directory::index::PublicDirectoryService,
         public_directory::public_directory_worker_service::PublicDirectoryWorkerService,
+        public_key::source_1_worker_service::ExternalSource1WorkerService,
     },
     utils::utils::Utils,
 };
@@ -28,6 +29,7 @@ pub struct TrustedRegistry {
     pub period_seconds: u64,
     pub start_up: u64,
     pub retry_period: u64,
+    pub external_source_1_url: Option<String>,
 }
 
 impl TrustedRegistry {
@@ -86,6 +88,21 @@ impl TrustedRegistry {
                         }
                     }
                     Err(e) => return Err(e.into()),
+                }
+                // just sweeping in case External 1 source is set
+                match &self.external_source_1_url {
+                    Some(url) => match ExternalSource1WorkerService::new(url.to_string())
+                        .sweep(&db)
+                        .await
+                    {
+                        Ok(_) => {
+                            info!("Sucessfully updated from external source 1")
+                        }
+                        Err(e) => return Err(e.into()),
+                    },
+                    None => {
+                        info!("Skipping sweep to external souce 1 since it was not set on startup");
+                    }
                 }
                 Ok(())
             }
