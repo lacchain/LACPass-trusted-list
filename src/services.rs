@@ -6,3 +6,4 @@ pub mod public_key;
 pub mod trusted_registry;
 pub mod validator;
 pub mod web3;
+pub mod x509;

@@ -1,20 +1,18 @@
-use crate::responses::{
-    error_message::ErrorMessage, generic_response::Responses, success_messages::SuccessMessage,
+use crate::{
+    responses::{
+        error_message::ErrorMessage, generic_response::Responses, success_messages::SuccessMessage,
+    },
+    services::x509::x509_utils::X509Utils,
 };
 use base45::decode;
 use cbor::Decoder;
-use cose::{
-    keys::{self, CoseKey},
-    message::CoseMessage,
-};
+use cose::{keys::CoseKey, message::CoseMessage};
 use flate2::read::ZlibDecoder;
 use log::{debug, info};
 use nom::AsBytes;
 use rocket::serde::json::Json;
 use std::io::Read;
 use uuid::Uuid;
-
-use super::certificate_error::CertificateError;
 
 pub async fn get_pem_keys_by_country(_country_code: &str) -> anyhow::Result<Vec<String>> {
     // TODO: call redis and obtain stream of keys in pem format
@@ -41,7 +39,7 @@ pub async fn get_cose_keys_by_country_code(
             );
             return Err(e);
         }
-        Ok(pem_keys) => match pem_to_cose_keys(pem_keys, signing_alg) {
+        Ok(pem_keys) => match X509Utils::pem_to_cose_keys(pem_keys, signing_alg) {
             Some(cose_keys) => Ok(cose_keys),
             None => {
                 let message = format!("No keys found for country code: {}", country_code);
@@ -49,121 +47,6 @@ pub async fn get_cose_keys_by_country_code(
                 return Err(anyhow::anyhow!(message));
             }
         },
-    }
-}
-
-/// Returns cose keys according to cose-rust library format.
-/// If some key in the incoming "pem_keys" argument is not valid then it is just ommited.
-pub fn pem_to_cose_keys(pem_keys: Vec<String>, signing_alg: &i32) -> Option<Vec<CoseKey>> {
-    let cose_keys = pem_keys
-        .into_iter()
-        .filter_map(
-            |pem_key| match x509_certificate::X509Certificate::from_pem(pem_key.clone()) {
-                Err(e) => {
-                    debug!(
-                        "DESCRIPTION (Public Key Pem Decoding): Parsing to X509 Object failed: {:?} {:?}", pem_key, &e
-                    );
-                    None
-                }
-                Ok(v) => {
-                    match v.key_algorithm() {
-                        Some(alg) => {
-                            debug!("key_algorithm {:?}", alg);
-                            match alg {
-                                x509_certificate::KeyAlgorithm::Rsa => {
-                                    match v.rsa_public_key_data() {
-                                        Ok(rsa_public_key) => {
-                                            let n: Vec<u8> = rsa_public_key.clone().modulus.into_bytes().to_vec();
-                                            let e = rsa_public_key.clone().public_exponent.into_bytes().to_vec();
-                                            let mut key = keys::CoseKey::new();
-                                            key.kty(keys::RSA);
-                                            key.n(n);
-                                            key.e(e);
-                                            key.alg(*signing_alg);
-                                            key.key_ops(vec![keys::KEY_OPS_VERIFY]);
-                                            return Some(key);
-                                        },
-                                        Err(e) => {
-                                            debug!("DESCRIPTION (x509 rsa public key extraction): {:?}", &e); 
-                                            return None;
-                                        },
-                                    }
-                                },
-                                x509_certificate::KeyAlgorithm::Ecdsa(ecdsa_curve) => { // p-256 (according to https://github.com/WorldHealthOrganization/tng-participants-dev)
-                                    match ecdsa_curve {
-                                        x509_certificate::EcdsaCurve::Secp256r1 => {
-                                            let pub_key = v.public_key_data().to_owned();
-                                            let pub_key = pub_key.to_vec();
-                                            match get_x_y(pub_key) {
-                                                Err(e) => {
-                                                    debug!(
-                                                        "DESCRIPTION (x/y coordinate extraction): {:?}", &e
-                                                    );
-                                                    return None;
-                                                },
-                                                Ok(xy) => {
-                                                    let mut key = keys::CoseKey::new();
-                                                    key.kty(keys::P_256);
-                                                    key.x(xy.get(0).unwrap().to_owned());
-                                                    key.y(xy.get(1).unwrap().to_owned());
-                                                    key.alg(*signing_alg);
-                                                    key.key_ops(vec![keys::KEY_OPS_VERIFY]);
-                                                    return Some(key);
-                                                },
-                                            }
-                                        },
-                                        x509_certificate::EcdsaCurve::Secp384r1 => None,
-                                    }
-                                },
-                                x509_certificate::KeyAlgorithm::Ed25519 => None,
-                            }
-                        },
-                        None => {
-                            debug!(
-                                "DESCRIPTION (Public Key Pem decoding): No key algorithm found"
-                            );
-                            return None;
-                        }
-                    }
-                }
-            },
-        )
-        .collect::<Vec<_>>();
-    Some(cose_keys)
-}
-
-fn get_x(pub_key: Vec<u8>) -> Result<Vec<u8>, CertificateError> {
-    if pub_key.is_empty() || pub_key.len() != 65 {
-        return Err(CertificateError::INVALID);
-    }
-    Ok((1..33)
-        .into_iter()
-        .map(|i| pub_key.get(i).unwrap().to_owned())
-        .collect::<Vec<_>>())
-}
-
-fn get_y(pub_key: Vec<u8>) -> Result<Vec<u8>, CertificateError> {
-    if pub_key.is_empty() || pub_key.len() != 65 {
-        return Err(CertificateError::INVALID);
-    }
-    Ok((33..65)
-        .into_iter()
-        .map(|i| pub_key.get(i).unwrap().to_owned())
-        .collect::<Vec<_>>())
-}
-
-fn get_x_y(pub_key: Vec<u8>) -> Result<Vec<Vec<u8>>, CertificateError> {
-    match get_x(pub_key.clone()) {
-        Ok(x) => match get_y(pub_key) {
-            Ok(y) => {
-                let mut r = Vec::new();
-                r.push(x);
-                r.push(y);
-                Ok(r)
-            }
-            Err(e) => Err(e),
-        },
-        Err(e) => Err(e),
     }
 }
 
@@ -425,19 +308,21 @@ pub(crate) fn get_p256_pem_test_keys() -> Option<Vec<String>> {
 mod tests {
     use cose::algs;
 
+    use crate::services::x509::x509_utils::X509Utils;
+
     use super::*;
     // use std::println;
     #[test]
     fn get_cose_keys_containing_rsa_key_test() {
         let pem_keys = get_rsa_pem_test_keys().unwrap();
-        let cose_keys = pem_to_cose_keys(pem_keys, &algs::PS256).unwrap();
+        let cose_keys = X509Utils::pem_to_cose_keys(pem_keys, &algs::PS256).unwrap();
         assert_eq!(cose_keys.len(), 2)
     }
 
     #[test]
     fn get_cose_keys_containing_p256_key_test() {
         let pem_keys = get_p256_pem_test_keys().unwrap();
-        let cose_keys = pem_to_cose_keys(pem_keys, &algs::ES256).unwrap();
+        let cose_keys = X509Utils::pem_to_cose_keys(pem_keys, &algs::ES256).unwrap();
         assert_eq!(cose_keys.len(), 1);
     }
 }
