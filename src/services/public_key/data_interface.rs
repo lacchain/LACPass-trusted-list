@@ -30,6 +30,17 @@ impl PublicKeyService {
             .await
     }
 
+    pub async fn find_public_key_by_content_hash_and_country_code(
+        &self,
+        db: &DatabaseConnection,
+        content_hash: &str,
+        country_code: &str,
+    ) -> Result<Option<PublicKeyModel>, sea_orm::DbErr> {
+        PublicKeyEntity::find_by_hash_and_country_code(content_hash, country_code)
+            .one(db)
+            .await
+    }
+
     pub async fn find_by_id(
         &self,
         db: &DatabaseConnection,
@@ -41,22 +52,22 @@ impl PublicKeyService {
     pub async fn insert_public_key(
         &self,
         db: &DatabaseConnection,
-        did_id: &Uuid,
-        block_number: &u64,
+        did_id: Option<Uuid>,
+        block_number: Option<i64>,
         jwk: Vec<u8>,
         content_hash: &str,
         exp: &u64,
-        is_compromised: bool,
+        is_compromised: Option<bool>,
         country_code: &str,
     ) -> anyhow::Result<PublicKeyModel> {
         let db_registry = PublicKeyActiveModel {
             id: Set(Uuid::new_v4()),
-            did_id: Set(Some(*did_id)),
-            block_number: Set(Some(*block_number as i64)),
+            did_id: Set(did_id),
+            block_number: Set(block_number),
             jwk: Set(jwk),
             content_hash: Set(content_hash.to_owned()),
             exp: Set(Some(*exp as i64)),
-            is_compromised: Set(Some(is_compromised)),
+            is_compromised: Set(is_compromised),
             country_code: Set(country_code.to_owned()),
         };
         match db_registry.insert(db).await {

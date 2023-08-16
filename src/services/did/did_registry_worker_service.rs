@@ -1,4 +1,5 @@
 use crate::{
+    dto::response::public_key_response_dto::Jwk,
     entities::models::DidModel,
     services::{
         did::data_interface::DidDataInterfaceService,
@@ -8,6 +9,7 @@ use crate::{
         web3::utils::{
             get_address_from_log, get_bool_from_log, get_bytes_from_log, get_u64_from_log,
         },
+        x509::x509_utils::X509Utils,
     },
 };
 use crypto::{digest::Digest, sha3::Sha3};
@@ -257,20 +259,24 @@ impl DidRegistryWorkerService {
                     continue;
                 }
             }
+            let valid_to = get_u64_from_log(&did_attribute_changed_log, "validTo");
+            // let change_time = get_u64_from_log(&did_attribute_changed_log, "changeTime"); // Not needed for this logic
+            let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
+
             let jwk_bytes = get_bytes_from_log(&did_attribute_changed_log, "value");
+            let string_data;
             match String::from_utf8(jwk_bytes.clone()) {
-                Ok(v) => v,
-                Err(err) => {
-                    info!(
-                        "Error decoding certificate ... skipping this registry: {:?}",
-                        err
+                Ok(v) => {
+                    string_data = v;
+                }
+                Err(e) => {
+                    debug!(
+                        "Unable to parse certificate to bytes from string coming at block {} from did {} ... error was: {:?}",
+                        block, self.did.did, &e
                     );
                     continue;
                 }
             };
-            let valid_to = get_u64_from_log(&did_attribute_changed_log, "validTo");
-            // let change_time = get_u64_from_log(&did_attribute_changed_log, "changeTime"); // Not needed for this logic
-            let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
 
             // TODO: make sure validTo >= x509 certificate expiration time -> think more about the logic to query the certificate ...
             // current time
@@ -283,7 +289,46 @@ impl DidRegistryWorkerService {
             // endpoint for CRL ~
 
             let mut h = Sha3::keccak256();
-            h.input(&jwk_bytes);
+            match serde_json::from_str::<Jwk>(&string_data) {
+                Ok(jwk) => match jwk.x5c {
+                    Some(x5c) => match x5c.get(0) {
+                        Some(pem_candidate) => {
+                            match X509Utils::get_decoded_pem_bytes(pem_candidate.to_string()) {
+                                Ok(decoded) => {
+                                    h.input(&decoded);
+                                }
+                                Err(e) => {
+                                    debug!(
+                                        "Unable to decode pem certificate coming in jwk exposed from did: {}, error was: {:?}",
+                                        self.did.did, &e
+                                    );
+                                    continue;
+                                }
+                            }
+                        }
+                        None => {
+                            debug!(
+                                    "Unable to extract x5c from jwk comimg from an exposed jwk from did: {}", self.did.did
+                                );
+                            continue;
+                        }
+                    },
+                    None => {
+                        debug!(
+                                "Unable to extract x5c from jwk comimg from an exposed jwk from did: {}", self.did.did
+                            );
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    debug!(
+                        "Unable to decode certificate coming at block {} from did {} ... error was: {:?}",
+                        block, self.did.did, &e
+                    );
+                    continue;
+                }
+            }
+
             let content_hash = h.result_str();
 
             match self
@@ -312,7 +357,14 @@ impl DidRegistryWorkerService {
                                             found_public_key.id, self.did.did
                                         );
                                     }
-                                    Err(e) => return Err(e.into()),
+                                    Err(e) => {
+                                        let message = format!(
+                                            "DESCRIPTION (Update public key registry in did {} ): {:?}",
+                                            self.did.did, &e
+                                        );
+                                        debug!("{}", message);
+                                        return Err(anyhow::anyhow!(message));
+                                    }
                                 }
                             }
                         }
@@ -328,12 +380,12 @@ impl DidRegistryWorkerService {
                             .public_key_service
                             .insert_public_key(
                                 db,
-                                &self.did.id,
-                                &block,
+                                Some(self.did.id),
+                                Some(*block as i64),
                                 jwk_bytes,
                                 &content_hash,
                                 &valid_to,
-                                is_compromised,
+                                Some(is_compromised),
                                 &self.country_code,
                             )
                             .await
