@@ -49,6 +49,8 @@ impl PdMemberDataInterfaceService {
         member_id: &i64,
         exp: &i64,
         block_number: &i64,
+        country_code: String,
+        url: Option<String>,
     ) -> anyhow::Result<PdMemberModel> {
         match self
             .public_directory_service
@@ -64,6 +66,8 @@ impl PdMemberDataInterfaceService {
                         member_id: Set(*member_id),
                         public_directory_id: Set(pd.id),
                         block_number: Set(*block_number),
+                        country_code: Set(country_code),
+                        url: Set(url),
                     };
                     match db_registry.insert(db).await {
                         Ok(res) => return Ok(res),
@@ -106,33 +110,11 @@ impl PdMemberDataInterfaceService {
             Err(e) => return Err(e.into()),
         }
     }
-    /// insert or update public directory member to database
-    pub async fn save_pd_member_to_database(
-        &self,
+
+    pub async fn find_one_by_did(
         db: &DatabaseConnection,
-        member_id: &i64,
-        exp: &i64,
-        block_number: &i64,
-    ) -> anyhow::Result<PdMemberModel> {
-        match self.get_pd_member_from_database(db, member_id).await {
-            Ok(u) => match u {
-                Some(v) => {
-                    let mut s: PdMemberActiveModel = v.into();
-                    s.exp = Set(*exp);
-                    s.block_number = Set(*block_number);
-                    match s.update(db).await {
-                        Ok(res) => return Ok(res),
-                        Err(err) => {
-                            return Err(err.into());
-                        }
-                    }
-                }
-                None => {
-                    self.insert_pd_member(db, member_id, exp, block_number)
-                        .await
-                }
-            },
-            Err(e) => Err(e.into()),
-        }
+        did_id: Uuid,
+    ) -> Result<Option<PdMemberModel>, sea_orm::DbErr> {
+        PdMemberEntity::find_by_did(did_id).one(db).await
     }
 }

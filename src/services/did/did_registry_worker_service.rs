@@ -1,17 +1,21 @@
 use crate::{
+    dto::response::public_key_response_dto::Jwk,
     entities::models::DidModel,
     services::{
         did::data_interface::DidDataInterfaceService,
+        pd_member::data_interface::PdMemberDataInterfaceService,
         public_key::data_interface::PublicKeyService,
         trusted_registry::trusted_registry::Contract,
         web3::utils::{
             get_address_from_log, get_bool_from_log, get_bytes_from_log, get_u64_from_log,
         },
+        x509::x509_utils::X509Utils,
     },
 };
 use crypto::{digest::Digest, sha3::Sha3};
 use log::{debug, info};
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
 use web3::ethabi::Log;
 
 use super::index::{DidLac1, DidService};
@@ -21,27 +25,52 @@ pub struct DidRegistryWorkerService {
     public_key_service: PublicKeyService,
     did: DidModel,
     did_params: DidLac1,
+    country_code: String,
+    url: Option<String>,
 }
 
 impl DidRegistryWorkerService {
-    pub async fn new(did: DidModel) -> anyhow::Result<Self> {
+    pub async fn new(db: &DatabaseConnection, did: DidModel) -> anyhow::Result<Self> {
         match DidService::decode_did(&did.did) {
             Ok(did_params) => {
                 let params = Contract {
                     chain_id: did_params.chain_id.to_string(),
                     contract_address: did_params.did_registry_address,
                 };
-                match DidService::new(params).await {
-                    Ok(did_service) => Ok(Self {
-                        did_service,
-                        public_key_service: PublicKeyService::new(),
-                        did,
-                        did_params,
-                    }),
-                    Err(e) => return Err(e.into()),
+                match Self::resolve_country_code_by_public_directory(db, did.id).await {
+                    Ok((cc, url)) => match DidService::new(params).await {
+                        Ok(did_service) => Ok(Self {
+                            did_service,
+                            public_key_service: PublicKeyService::new(),
+                            did,
+                            did_params,
+                            country_code: cc,
+                            url,
+                        }),
+                        Err(e) => return Err(e.into()),
+                    },
+                    Err(e) => {
+                        return Err(e.into());
+                    }
                 }
             }
             Err(e) => return Err(e.into()),
+        }
+    }
+
+    pub async fn resolve_country_code_by_public_directory(
+        db: &DatabaseConnection,
+        did_id: Uuid,
+    ) -> anyhow::Result<(String, Option<String>)> {
+        match PdMemberDataInterfaceService::find_one_by_did(db, did_id).await {
+            Ok(pd_member_wrap) => match pd_member_wrap {
+                Some(pd_member) => Ok((pd_member.country_code, pd_member.url)),
+                None => Err(anyhow::anyhow!(format!(
+                    "Public Directory member with id {:?} does not exist",
+                    did_id
+                ))),
+            },
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -203,6 +232,7 @@ impl DidRegistryWorkerService {
                 continue;
             }
             let name = get_bytes_from_log(&did_attribute_changed_log, "name");
+            prev_block = get_u64_from_log(&did_attribute_changed_log, "previousChange");
             match String::from_utf8(name) {
                 Ok(v) => {
                     info!("found new candidate public key for did {}", self.did.did);
@@ -231,24 +261,76 @@ impl DidRegistryWorkerService {
                     continue;
                 }
             }
+            let valid_to = get_u64_from_log(&did_attribute_changed_log, "validTo");
+            // let change_time = get_u64_from_log(&did_attribute_changed_log, "changeTime"); // Not needed for this logic
+            let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
+
             let jwk_bytes = get_bytes_from_log(&did_attribute_changed_log, "value");
+            let string_data;
             match String::from_utf8(jwk_bytes.clone()) {
-                Ok(v) => v,
-                Err(err) => {
-                    info!(
-                        "Error decoding certificate ... skipping this registry: {:?}",
-                        err
+                Ok(v) => {
+                    string_data = v;
+                }
+                Err(e) => {
+                    debug!(
+                        "Unable to parse certificate to bytes from string coming at block {} from did {} ... error was: {:?}",
+                        block, self.did.did, &e
                     );
                     continue;
                 }
             };
-            let valid_to = get_u64_from_log(&did_attribute_changed_log, "validTo");
-            // let change_time = get_u64_from_log(&did_attribute_changed_log, "changeTime"); // Not needed for this logic
-            prev_block = get_u64_from_log(&did_attribute_changed_log, "previousChange");
-            let is_compromised = get_bool_from_log(&did_attribute_changed_log, "compromised"); // TODO: analyze how to serve this
+
+            // TODO: make sure validTo >= x509 certificate expiration time -> think more about the logic to query the certificate ...
+            // current time
+            // if certificate_expiration_time > current_time -> add it
+            // add certificate_expiration_time field to pulic_key entity
+            // modify endpoint to filter with that certificate_expiration_time criterion
+            // for wallets, issuance date must not be greater than validTo (or equivalent in systems other than lacchain) and expiration time must be
+            // less than certificate_expiration_time
+            // keep in mind the other keys we are going to integrate with
+            // endpoint for CRL ~
 
             let mut h = Sha3::keccak256();
-            h.input(&jwk_bytes);
+            match serde_json::from_str::<Jwk>(&string_data) {
+                Ok(jwk) => match jwk.x5c {
+                    Some(x5c) => match x5c.get(0) {
+                        Some(pem_candidate) => {
+                            match X509Utils::get_decoded_pem_bytes(pem_candidate.to_string()) {
+                                Ok(decoded) => {
+                                    h.input(&decoded);
+                                }
+                                Err(e) => {
+                                    debug!(
+                                        "Unable to decode pem certificate coming in jwk exposed from did: {}, error was: {:?}",
+                                        self.did.did, &e
+                                    );
+                                    continue;
+                                }
+                            }
+                        }
+                        None => {
+                            debug!(
+                                    "Unable to extract x5c from jwk comimg from an exposed jwk from did: {}", self.did.did
+                                );
+                            continue;
+                        }
+                    },
+                    None => {
+                        debug!(
+                                "Unable to extract x5c from jwk comimg from an exposed jwk from did: {}", self.did.did
+                            );
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    debug!(
+                        "Unable to decode certificate coming at block {} from did {} ... error was: {:?}",
+                        block, self.did.did, &e
+                    );
+                    continue;
+                }
+            }
+
             let content_hash = h.result_str();
 
             match self
@@ -257,40 +339,57 @@ impl DidRegistryWorkerService {
                 .await
             {
                 Ok(wrapped) => match wrapped {
-                    Some(found_public_key) => {
-                        if (found_public_key.block_number as u64) < *block {
-                            match self
-                                .public_key_service
-                                .update_public_key(
-                                    db,
-                                    &found_public_key.id,
-                                    Some(*block),
-                                    Some(valid_to),
-                                    Some(is_compromised),
-                                )
-                                .await
-                            {
-                                Ok(_) => {
-                                    info!(
-                                        "Updated public key with id: {:} for did: {}",
-                                        found_public_key.id, self.did.did
-                                    );
+                    Some(found_public_key) => match found_public_key.block_number {
+                        Some(block_number) => {
+                            if (block_number as u64) < *block {
+                                match self
+                                    .public_key_service
+                                    .update_public_key(
+                                        db,
+                                        &found_public_key.id,
+                                        Some(*block),
+                                        Some(valid_to),
+                                        Some(is_compromised),
+                                    )
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        info!(
+                                            "Updated public key with id: {:} for did: {}",
+                                            found_public_key.id, self.did.did
+                                        );
+                                    }
+                                    Err(e) => {
+                                        let message = format!(
+                                            "DESCRIPTION (Update public key registry in did {} ): {:?}",
+                                            self.did.did, &e
+                                        );
+                                        debug!("{}", message);
+                                        return Err(anyhow::anyhow!(message));
+                                    }
                                 }
-                                Err(e) => return Err(e.into()),
                             }
                         }
-                    }
+                        None => {
+                            info!(
+                                "Found public key but no block number was found for {}",
+                                self.did.id
+                            ); // since not found then prev block will be zero
+                        }
+                    },
                     None => {
                         match self
                             .public_key_service
                             .insert_public_key(
                                 db,
-                                &self.did.id,
-                                &block,
+                                Some(self.did.id),
+                                Some(*block as i64),
                                 jwk_bytes,
                                 &content_hash,
                                 &valid_to,
-                                is_compromised,
+                                Some(is_compromised),
+                                &self.country_code,
+                                self.url.clone(),
                             )
                             .await
                         {

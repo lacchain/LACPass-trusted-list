@@ -56,7 +56,8 @@ pub fn stage() -> AdHoc {
 
 pub fn get_routes_and_docs(settings: &OpenApiSettings) -> (Vec<rocket::Route>, OpenApi) {
     openapi_get_routes_spec![
-        settings: crate::controllers::certificate_controller::verify_certificate
+        settings:
+        crate::controllers::certificate_controller::verify_base45_certificate
     ]
 }
 

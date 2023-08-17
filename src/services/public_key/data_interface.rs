@@ -1,10 +1,11 @@
 use crate::databases::pool::Db;
-use crate::dto::response::public_key_response_dto::PublicKeyResponseDto;
+use crate::dto::response::public_key_response_dto::{PublicKeyCoreResponse, PublicKeyResponseDto};
 use crate::entities::entities::PublicKeyEntity;
 use crate::entities::models::{PublicKeyActiveModel, PublicKeyModel};
 use crate::responses::error_message::ErrorMessage;
 use crate::responses::generic_response::Responses;
 use crate::responses::success_messages::SuccessMessage;
+use log::info;
 use rocket::serde::json::Json;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, PaginatorTrait, Set};
 use sea_orm_rocket::Connection;
@@ -29,6 +30,27 @@ impl PublicKeyService {
             .await
     }
 
+    /// receives a iso alpha2 country code and returns all associated keys
+    pub async fn find_public_key_by_country(
+        db: &DatabaseConnection,
+        country_code: &str,
+    ) -> Result<Vec<PublicKeyModel>, sea_orm::DbErr> {
+        PublicKeyEntity::find_by_country_code(country_code)
+            .all(db)
+            .await
+    }
+
+    pub async fn find_public_key_by_content_hash_and_country_code(
+        &self,
+        db: &DatabaseConnection,
+        content_hash: &str,
+        country_code: &str,
+    ) -> Result<Option<PublicKeyModel>, sea_orm::DbErr> {
+        PublicKeyEntity::find_by_hash_and_country_code(content_hash, country_code)
+            .one(db)
+            .await
+    }
+
     pub async fn find_by_id(
         &self,
         db: &DatabaseConnection,
@@ -40,21 +62,25 @@ impl PublicKeyService {
     pub async fn insert_public_key(
         &self,
         db: &DatabaseConnection,
-        did_id: &Uuid,
-        block_number: &u64,
+        did_id: Option<Uuid>,
+        block_number: Option<i64>,
         jwk: Vec<u8>,
         content_hash: &str,
         exp: &u64,
-        is_compromised: bool,
+        is_compromised: Option<bool>,
+        country_code: &str,
+        url: Option<String>,
     ) -> anyhow::Result<PublicKeyModel> {
         let db_registry = PublicKeyActiveModel {
             id: Set(Uuid::new_v4()),
-            did_id: Set(*did_id),
-            block_number: Set(*block_number as i64),
+            did_id: Set(did_id),
+            block_number: Set(block_number),
             jwk: Set(jwk),
             content_hash: Set(content_hash.to_owned()),
-            exp: Set(*exp as i64),
+            exp: Set(Some(*exp as i64)),
             is_compromised: Set(is_compromised),
+            country_code: Set(country_code.to_owned()),
+            url: Set(url),
         };
         match db_registry.insert(db).await {
             Ok(res) => return Ok(res),
@@ -78,19 +104,19 @@ impl PublicKeyService {
                     let mut s: PublicKeyActiveModel = v.into();
                     match block_number {
                         Some(v) => {
-                            s.block_number = Set(v as i64);
+                            s.block_number = Set(Some(v as i64));
                         }
                         None => {}
                     }
                     match exp {
                         Some(v) => {
-                            s.exp = Set(v as i64);
+                            s.exp = Set(Some(v as i64));
                         }
                         None => {}
                     }
                     match is_compromised {
                         Some(v) => {
-                            s.is_compromised = Set(v);
+                            s.is_compromised = Set(Some(v));
                         }
                         None => {}
                     }
@@ -112,7 +138,7 @@ impl PublicKeyService {
         }
     }
 
-    pub async fn get_all(
+    pub async fn get_all_from_lacchain(
         connection: Connection<'_, Db>,
         page: Option<u64>,
         page_size: Option<u64>,
@@ -136,7 +162,7 @@ impl PublicKeyService {
         }
         let paginator =
             PublicKeyEntity::find_by_public_directory(public_directory_contract_address, chain_id)
-                .paginate(db, page_size.try_into().unwrap());
+                .paginate(db, page_size);
         let num_pages;
         match paginator.num_pages().await {
             Ok(r) => {
@@ -157,27 +183,39 @@ impl PublicKeyService {
             .await
             .map(|r| {
                 r.into_iter()
-                    .map(|el| String::from_utf8(el.jwk))
-                    .filter_map(|el| match el {
-                        Ok(key) => Some(key),
+                    .map(|el| {
+                        return (String::from_utf8(el.jwk), el.country_code, el.url);
+                    })
+                    .filter_map(|el| match el.0 {
+                        Ok(key) => Some((key, el.1, el.2)),
                         _ => None,
                     })
-                    .map(|jwk_str| serde_json::from_str(&jwk_str))
-                    .filter_map(|el| match el {
-                        Ok(jwk) => Some(jwk),
-                        _ => None,
+                    .map(|(jwk_str, country_code, url)| {
+                        let parsed = serde_json::from_str(&jwk_str);
+                        (parsed, country_code, url)
+                    })
+                    .filter_map(|el| match el.0 {
+                        Ok(jwk) => Some(PublicKeyCoreResponse {
+                            url: el.2,
+                            country: el.1,
+                            jwk,
+                        }),
+                        Err(e) => {
+                            info!("Error parsing {:?}", &e);
+                            return None;
+                        }
                     })
                     .collect::<Vec<_>>()
             });
 
         match result {
-            Ok(v) => {
+            Ok(keys) => {
                 return Responses::Sucess(Json::from(SuccessMessage {
                     data: PublicKeyResponseDto {
                         page,
                         results_per_page: page_size,
                         num_pages,
-                        keys: v,
+                        keys,
                     },
                     trace_id: trace_id.to_string(),
                 }));

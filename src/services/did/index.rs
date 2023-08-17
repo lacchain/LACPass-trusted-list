@@ -86,14 +86,14 @@ mod tests {
             "did:lac1:1iT5D8E51oULzpTrFePKe9KibQh4sEnqLCRDdFSLRNPfmf89seFJvjcfgKrtZ5YdGBX1".trim();
         let decoded = DidService::decode_did(did).unwrap();
         assert_eq!(
-            decoded.address.to_string().to_lowercase(),
+            Utils::vec_u8_to_hex_string(decoded.address.as_bytes().to_vec()).unwrap(),
             "0x560ff31E783570097c18bd342e524Ef4c36fE7AE"
                 .to_owned()
                 .to_lowercase()
         );
 
         assert_eq!(
-            decoded.did_registry_address.to_string().to_lowercase(),
+            Utils::vec_u8_to_hex_string(decoded.did_registry_address.as_bytes().to_vec()).unwrap(),
             "0x54358D929CCf45C7cCEE8Ca60FCD0C0402489F54"
                 .to_owned()
                 .to_lowercase(),

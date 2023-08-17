@@ -8,16 +8,31 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub did_id: Uuid,
-    pub block_number: i64,
-    pub jwk: Vec<u8>,
+    pub country_code: String,
     #[sea_orm(column_type = "Text")]
     pub content_hash: String,
-    pub exp: i64,
-    pub is_compromised: bool,
+    pub jwk: Vec<u8>,
+    pub exp: Option<i64>,
+    pub is_compromised: Option<bool>,
+    pub did_id: Option<Uuid>,
+    pub block_number: Option<i64>,
+    pub url: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "crate::entities::did::model::Entity",
+        from = "Column::DidId",
+        to = "crate::entities::did::model::Column::Id"
+    )]
+    Did,
+}
+
+impl Related<crate::entities::did::model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Did.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

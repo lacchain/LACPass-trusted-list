@@ -10,8 +10,10 @@ use crate::services::{
     pd_did_member::data_interface::PdDidMemberDataInterfaceService,
     pd_member::data_interface::PdMemberDataInterfaceService,
     public_directory::index::PublicDirectoryService,
-    web3::utils::{get_string_from_string_in_log, get_u64_from_log},
+    web3::utils::{get_bytes_from_log, get_string_from_string_in_log, get_u64_from_log},
 };
+
+use super::{country_code::ALPHA3_TO_ALPHA2, member_data::MemberData};
 
 pub struct PublicDirectoryWorkerService {
     pub pd_did_member_data_interface_service: PdDidMemberDataInterfaceService,
@@ -288,7 +290,6 @@ impl PublicDirectoryWorkerService {
         //         return Err(e);
         //     }
         // };
-        let prev_block: u64;
 
         match self
             .pd_did_member_data_interface_service
@@ -304,8 +305,41 @@ impl PublicDirectoryWorkerService {
                     .await
                 {
                     Err(e) => return Err(e.into()),
-                    Ok(v) => {
-                        prev_block = v;
+                    Ok(_) => {
+                        // get prev block
+                        match self
+                            .pd_did_member_data_interface_service
+                            .pd_member_data_service
+                            .public_directory_service
+                            .contract_interface
+                            .get_events_in_block_by_method("ContractChange", &block)
+                            .await
+                        {
+                            Ok(contract_change_logs) => {
+                                let prev_block_wrap = contract_change_logs.into_iter().find_map(
+                                    |contract_change_log| {
+                                        let iat = get_u64_from_log(
+                                            &contract_change_log,
+                                            "contractPrevBlock",
+                                        );
+                                        return Some(iat);
+                                    },
+                                );
+                                match prev_block_wrap {
+                                    Some(prev_block) => return Ok(prev_block),
+                                    None => {
+                                        let message = format!("Nothing was found on trying to retrieve previous last block change number");
+                                        debug!("{}", message);
+                                        return Err(anyhow::anyhow!(message));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let message = format!("Unable to retrieve contract last block change number. Error was: {:?}", &e);
+                                debug!("{}", message);
+                                return Err(anyhow::anyhow!(message));
+                            }
+                        }
                     }
                 }
             }
@@ -337,7 +371,6 @@ impl PublicDirectoryWorkerService {
         //         return Err(e);
         //     }
         // }
-        Ok(prev_block)
     }
 
     pub async fn process_member_changed_event(
@@ -345,16 +378,66 @@ impl PublicDirectoryWorkerService {
         db: &DatabaseConnection,
         member_changed_logs: Vec<Log>,
         block: &u64,
-    ) -> anyhow::Result<u64> {
-        let mut prev_block: u64 = 0;
+    ) -> anyhow::Result<()> {
         for member_changed_log in member_changed_logs {
             let exp = get_u64_from_log(&member_changed_log, "exp");
             let iat = get_u64_from_log(&member_changed_log, "iat");
             let member_id = get_u64_from_log(&member_changed_log, "memberId");
             let did = get_string_from_string_in_log(&member_changed_log, "did");
-            prev_block = get_u64_from_log(&member_changed_log, "prevBlock");
             let transaction_timestamp = get_u64_from_log(&member_changed_log, "currentTimestap");
             let current_time;
+            let raw_data = get_bytes_from_log(&member_changed_log, "rawData");
+            let member_data_string: String;
+            match String::from_utf8(raw_data.clone()) {
+                Ok(v) => member_data_string = v,
+                Err(err) => {
+                    info!(
+                        "Error decoding raw data for did {} ... skipping this registry: {:?}",
+                        did, err
+                    );
+                    continue;
+                }
+            };
+            let member_data: MemberData;
+            match serde_json::from_str(&member_data_string) {
+                Ok(v) => {
+                    member_data = v;
+                }
+                Err(e) => {
+                    info!(
+                        "Error decoding raw data for did {} ... skipping this registry: {:?}",
+                        did, &e
+                    );
+                    continue;
+                }
+            };
+            let mut country_code;
+            let url: Option<String>;
+            match member_data.identification_data {
+                Some(identification_data) => {
+                    country_code = identification_data.country_code.to_owned();
+                    url = Some(identification_data.url.to_owned());
+                    match ALPHA3_TO_ALPHA2.get(&country_code as &str) {
+                        Some(alhpa2_country_code) => {
+                            country_code = alhpa2_country_code.to_string();
+                        }
+                        None => {
+                            info!(
+                                "PublicDirectory: invalid country code: {:?} ... skipping this registry: {:?}",
+                                did, country_code.clone()
+                            );
+                            continue;
+                        }
+                    }
+                }
+                None => {
+                    info!(
+                        "PublicDirectory: 'identificationData' not found in incoming raw_data ... skipping this registry: {:?}",
+                        did
+                    );
+                    continue;
+                }
+            }
             match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
                 Ok(d) => {
                     current_time = d.as_secs();
@@ -410,6 +493,8 @@ impl PublicDirectoryWorkerService {
                                     &(member_id as i64),
                                     &(exp as i64),
                                     &(*block as i64),
+                                    country_code.to_string(),
+                                    url,
                                 )
                                 .await
                             {
@@ -475,12 +560,12 @@ impl PublicDirectoryWorkerService {
                     },
                     Err(e) => return Err(e.into()),
                 }
-            } else if transaction_timestamp == exp {
-                // revocation case scenario
-                // TODO: MemberChanged with currentTimestamp==exp -> remove the entity did and all its dids from the database
-                // info!("a member was removed");
+            } else if transaction_timestamp == exp { // TODO: remove if exists
+                 // revocation case scenario
+                 // TODO: MemberChanged with currentTimestamp==exp -> remove the entity did and all its dids from the database
+                 // info!("a member was removed");
             }
         }
-        Ok(prev_block)
+        Ok(())
     }
 }
