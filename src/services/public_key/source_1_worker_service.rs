@@ -1,5 +1,5 @@
 use crypto::{digest::Digest, sha3::Sha3};
-use log::debug;
+use log::{debug, info};
 use reqwest::Client;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
@@ -80,6 +80,7 @@ impl ExternalSource1WorkerService {
     }
 
     pub async fn sweep(&self, db: &DatabaseConnection) -> anyhow::Result<()> {
+        info!("Starting new sweep operation for 'Source 1'");
         match self.client.get(self.url_connection.clone()).send().await {
             Ok(v) => match v.json::<Vec<ExternalSource1FormatData>>().await {
                 Ok(keys) => {

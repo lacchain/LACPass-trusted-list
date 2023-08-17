@@ -30,6 +30,16 @@ impl PublicKeyService {
             .await
     }
 
+    /// receives a iso alpha2 country code and returns all associated keys
+    pub async fn find_public_key_by_country(
+        db: &DatabaseConnection,
+        country_code: &str,
+    ) -> Result<Vec<PublicKeyModel>, sea_orm::DbErr> {
+        PublicKeyEntity::find_by_country_code(country_code)
+            .all(db)
+            .await
+    }
+
     pub async fn find_public_key_by_content_hash_and_country_code(
         &self,
         db: &DatabaseConnection,
@@ -126,7 +136,7 @@ impl PublicKeyService {
         }
     }
 
-    pub async fn get_all(
+    pub async fn get_all_from_lacchain(
         connection: Connection<'_, Db>,
         page: Option<u64>,
         page_size: Option<u64>,

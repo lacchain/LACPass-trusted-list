@@ -28,7 +28,7 @@ pub async fn get_all(
             )
             .unwrap();
             let public_directory_chain_id = &tr.public_directory.chain_id;
-            PublicKeyService::get_all(
+            PublicKeyService::get_all_from_lacchain(
                 connection,
                 page,
                 results_per_page,

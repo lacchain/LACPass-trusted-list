@@ -289,6 +289,31 @@ impl X509Utils {
             }
         }
     }
+
+    pub fn get_pem_from_string_jwk(jwk_str: &str) -> anyhow::Result<String> {
+        match serde_json::from_str::<Jwk>(jwk_str) {
+            Ok(jwk) => match jwk.x5c {
+                Some(x5c) => match x5c.get(0) {
+                    Some(pem_candidate) => return Ok(pem_candidate.to_string()),
+                    None => {
+                        let message = format!("No fields were found in x5c");
+                        debug!("{}", message);
+                        return Err(anyhow::anyhow!(message));
+                    }
+                },
+                None => {
+                    let message = format!("Unable to extract x5c from jwk");
+                    debug!("{}", message);
+                    return Err(anyhow::anyhow!(message));
+                }
+            },
+            Err(e) => {
+                let message = format!("Unable to parse string to jwk, error was: {}", &e);
+                debug!("{}", message);
+                return Err(anyhow::anyhow!(message));
+            }
+        }
+    }
 }
 
 #[allow(dead_code)]

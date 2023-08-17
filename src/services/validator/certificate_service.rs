@@ -2,7 +2,7 @@ use crate::{
     responses::{
         error_message::ErrorMessage, generic_response::Responses, success_messages::SuccessMessage,
     },
-    services::x509::x509_utils::X509Utils,
+    services::{public_key::data_interface::PublicKeyService, x509::x509_utils::X509Utils},
 };
 use base45::decode;
 use cbor::Decoder;
@@ -11,16 +11,56 @@ use flate2::read::ZlibDecoder;
 use log::{debug, info};
 use nom::AsBytes;
 use rocket::serde::json::Json;
+use sea_orm::DatabaseConnection;
 use std::io::Read;
 use uuid::Uuid;
 
-pub async fn get_pem_keys_by_country(_country_code: &str) -> anyhow::Result<Vec<String>> {
-    // TODO: call redis and obtain stream of keys in pem format
-    get_pem_test_keys().await
+pub async fn get_pem_keys_by_country(
+    db: &DatabaseConnection,
+    country_code: &str,
+) -> anyhow::Result<Vec<String>> {
+    match PublicKeyService::find_public_key_by_country(db, country_code).await {
+        Ok(registries) => {
+            let s = registries
+                .into_iter()
+                .filter_map(|registry| {
+                    match String::from_utf8(registry.jwk) {
+                        Ok(jwk_str) => {
+                            match X509Utils::get_pem_from_string_jwk(&jwk_str) {
+                                Ok(pem) => {
+                                    return Some(X509Utils::format_pem(pem));
+                                },
+                                Err(e) => {
+                                    let message = format!("Error while getting pem from string jwk for country: {}. Error was {:?}", country_code, &e);
+                                    debug!("{}", message);
+                                    return None;
+                                },
+                            }
+                        },
+                        Err(e) => {
+                            let message = format!("Error while decoding jwk bytes to string for country: {}. Error was {:?}", country_code, &e);
+                            debug!("{}", message);
+                            return None;
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(s)
+        }
+        Err(e) => {
+            let message = format!(
+                "Error while getting keys from database for country: {}. Error was {:?}",
+                country_code, &e
+            );
+            debug!("{}", message);
+            return Err(anyhow::anyhow!(message));
+        }
+    }
 }
 
 /// Returns cose keys according to cose-rust library format.
 pub async fn get_cose_keys_by_country_code(
+    db: &DatabaseConnection,
     country_code: &str,
     track_id: Option<Uuid>,
     signing_alg: &i32,
@@ -31,7 +71,7 @@ pub async fn get_cose_keys_by_country_code(
     } else {
         trace_id = Uuid::new_v4();
     }
-    match get_pem_keys_by_country(country_code).await {
+    match get_pem_keys_by_country(db, country_code).await {
         Err(e) => {
             debug!(
                 "TRACE_ID: {}, DESCRIPTION: (pem keys retrieval), {:?}",
@@ -98,13 +138,14 @@ pub fn get_country_from_hc1_payload(payload: Vec<u8>) -> Option<String> {
 }
 
 pub async fn is_valid_message(
+    db: &DatabaseConnection,
     message: &mut CoseMessage,
     country_code: String,
     trace_id: Uuid,
 ) -> Responses<Json<SuccessMessage<bool>>, Json<ErrorMessage<'static>>> {
     match message.header.alg {
         Some(alg) => {
-            match get_cose_keys_by_country_code(&country_code, Some(trace_id), &alg).await {
+            match get_cose_keys_by_country_code(db, &country_code, Some(trace_id), &alg).await {
                 Ok(cose_keys) => {
                     let result = cose_keys.into_iter().enumerate().find(|(idx, key)| {
                         match message.key(&key) {
@@ -174,10 +215,11 @@ pub async fn is_valid_message(
 }
 
 pub async fn verify_base45(
+    db: &DatabaseConnection,
     data: String,
 ) -> Responses<Json<SuccessMessage<bool>>, Json<ErrorMessage<'static>>> {
     let data = data.trim();
-    let data = data.replace("HC1:", "");
+    let data: String = data.replace("HC1:", "");
     let trace_id: Uuid = Uuid::new_v4();
     match decode(&data) {
         Ok(zlib_encoded) => {
@@ -194,7 +236,7 @@ pub async fn verify_base45(
                     let payload = cose_message.payload.clone();
                     match get_country_from_hc1_payload(payload) {
                         Some(country_code) => {
-                            return is_valid_message(&mut cose_message, country_code, trace_id)
+                            return is_valid_message(db, &mut cose_message, country_code, trace_id)
                                 .await
                         }
                         None => {
@@ -229,7 +271,7 @@ pub async fn verify_base45(
     }
 }
 
-async fn get_pem_test_keys() -> anyhow::Result<Vec<String>> {
+async fn _get_pem_test_keys() -> anyhow::Result<Vec<String>> {
     Ok(get_rsa_pem_test_keys().unwrap()) // secure since keys are pre-established- just for testing purposes
 }
 

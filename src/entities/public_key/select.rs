@@ -46,6 +46,10 @@ impl PublicKeyEntity {
         )
     }
 
+    pub fn find_by_country_code(country_code: &str) -> Select<Self> {
+        Self::find().filter(model::Column::CountryCode.eq(country_code))
+    }
+
     pub fn find_by_hash_and_country_code(content_hash: &str, country_code: &str) -> Select<Self> {
         Self::find().filter(
             model::Column::ContentHash
