@@ -290,7 +290,6 @@ impl PublicDirectoryWorkerService {
         //         return Err(e);
         //     }
         // };
-        let prev_block: u64;
 
         match self
             .pd_did_member_data_interface_service
@@ -306,8 +305,41 @@ impl PublicDirectoryWorkerService {
                     .await
                 {
                     Err(e) => return Err(e.into()),
-                    Ok(v) => {
-                        prev_block = v;
+                    Ok(_) => {
+                        // get prev block
+                        match self
+                            .pd_did_member_data_interface_service
+                            .pd_member_data_service
+                            .public_directory_service
+                            .contract_interface
+                            .get_events_in_block_by_method("ContractChange", &block)
+                            .await
+                        {
+                            Ok(contract_change_logs) => {
+                                let prev_block_wrap = contract_change_logs.into_iter().find_map(
+                                    |contract_change_log| {
+                                        let iat = get_u64_from_log(
+                                            &contract_change_log,
+                                            "contractPrevBlock",
+                                        );
+                                        return Some(iat);
+                                    },
+                                );
+                                match prev_block_wrap {
+                                    Some(prev_block) => return Ok(prev_block),
+                                    None => {
+                                        let message = format!("Nothing was found on trying to retrieve previous last block change number");
+                                        debug!("{}", message);
+                                        return Err(anyhow::anyhow!(message));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let message = format!("Unable to retrieve contract last block change number. Error was: {:?}", &e);
+                                debug!("{}", message);
+                                return Err(anyhow::anyhow!(message));
+                            }
+                        }
                     }
                 }
             }
@@ -339,7 +371,6 @@ impl PublicDirectoryWorkerService {
         //         return Err(e);
         //     }
         // }
-        Ok(prev_block)
     }
 
     pub async fn process_member_changed_event(
@@ -347,14 +378,12 @@ impl PublicDirectoryWorkerService {
         db: &DatabaseConnection,
         member_changed_logs: Vec<Log>,
         block: &u64,
-    ) -> anyhow::Result<u64> {
-        let mut prev_block: u64 = 0;
+    ) -> anyhow::Result<()> {
         for member_changed_log in member_changed_logs {
             let exp = get_u64_from_log(&member_changed_log, "exp");
             let iat = get_u64_from_log(&member_changed_log, "iat");
             let member_id = get_u64_from_log(&member_changed_log, "memberId");
             let did = get_string_from_string_in_log(&member_changed_log, "did");
-            prev_block = get_u64_from_log(&member_changed_log, "prevBlock");
             let transaction_timestamp = get_u64_from_log(&member_changed_log, "currentTimestap");
             let current_time;
             let raw_data = get_bytes_from_log(&member_changed_log, "rawData");
@@ -537,6 +566,6 @@ impl PublicDirectoryWorkerService {
                  // info!("a member was removed");
             }
         }
-        Ok(prev_block)
+        Ok(())
     }
 }
