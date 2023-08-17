@@ -39,6 +39,7 @@ impl ExternalSource1WorkerService {
         jwk_bytes: Vec<u8>,
         valid_to: u64,
         country_code: String,
+        url: Option<String>,
     ) -> anyhow::Result<()> {
         match self
             .public_key_service
@@ -64,6 +65,7 @@ impl ExternalSource1WorkerService {
                             &valid_to,
                             None,
                             &country_code,
+                            url,
                         )
                         .await
                     {
@@ -133,7 +135,7 @@ impl ExternalSource1WorkerService {
                                                 let jwk_bytes = jwk_string.as_bytes();
 
                                                 match X509Utils::get_expiration_from_pem(pem_candidate.to_string()) {
-                                                    Ok(expiration) => Some((content_hash, jwk_bytes.to_owned(), expiration, key.clone().country )),
+                                                    Ok(expiration) => Some((content_hash, jwk_bytes.to_owned(), expiration, key.clone().country, Some(key.url.clone()) )),
                                                     Err(e) => {
                                                         let message = format!(
                                                             "Error while getting 'Expiration' from pem - for country {:?}; error was: {:?}",
@@ -178,6 +180,7 @@ impl ExternalSource1WorkerService {
                         let jwk_bytes = candidate.1;
                         let valid_to = candidate.2;
                         let country_code = candidate.3;
+                        let url = candidate.4;
                         match self
                             .update_or_insert_public_key(
                                 db,
@@ -185,6 +188,7 @@ impl ExternalSource1WorkerService {
                                 jwk_bytes,
                                 valid_to,
                                 country_code.clone(),
+                                url,
                             )
                             .await
                         {

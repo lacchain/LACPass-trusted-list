@@ -69,6 +69,7 @@ impl PublicKeyService {
         exp: &u64,
         is_compromised: Option<bool>,
         country_code: &str,
+        url: Option<String>,
     ) -> anyhow::Result<PublicKeyModel> {
         let db_registry = PublicKeyActiveModel {
             id: Set(Uuid::new_v4()),
@@ -79,6 +80,7 @@ impl PublicKeyService {
             exp: Set(Some(*exp as i64)),
             is_compromised: Set(is_compromised),
             country_code: Set(country_code.to_owned()),
+            url: Set(url),
         };
         match db_registry.insert(db).await {
             Ok(res) => return Ok(res),
@@ -182,18 +184,22 @@ impl PublicKeyService {
             .map(|r| {
                 r.into_iter()
                     .map(|el| {
-                        return (String::from_utf8(el.jwk), el.country_code);
+                        return (String::from_utf8(el.jwk), el.country_code, el.url);
                     })
                     .filter_map(|el| match el.0 {
-                        Ok(key) => Some((key, el.1)),
+                        Ok(key) => Some((key, el.1, el.2)),
                         _ => None,
                     })
-                    .map(|(jwk_str, country_code)| {
+                    .map(|(jwk_str, country_code, url)| {
                         let parsed = serde_json::from_str(&jwk_str);
-                        (parsed, country_code)
+                        (parsed, country_code, url)
                     })
                     .filter_map(|el| match el.0 {
-                        Ok(jwk) => Some(PublicKeyCoreResponse { country: el.1, jwk }),
+                        Ok(jwk) => Some(PublicKeyCoreResponse {
+                            url: el.2,
+                            country: el.1,
+                            jwk,
+                        }),
                         Err(e) => {
                             info!("Error parsing {:?}", &e);
                             return None;

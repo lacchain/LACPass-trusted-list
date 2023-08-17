@@ -50,6 +50,7 @@ impl PdMemberDataInterfaceService {
         exp: &i64,
         block_number: &i64,
         country_code: String,
+        url: Option<String>,
     ) -> anyhow::Result<PdMemberModel> {
         match self
             .public_directory_service
@@ -66,6 +67,7 @@ impl PdMemberDataInterfaceService {
                         public_directory_id: Set(pd.id),
                         block_number: Set(*block_number),
                         country_code: Set(country_code),
+                        url: Set(url),
                     };
                     match db_registry.insert(db).await {
                         Ok(res) => return Ok(res),

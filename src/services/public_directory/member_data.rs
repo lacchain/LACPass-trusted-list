@@ -15,4 +15,6 @@ pub struct IdentificationData {
     pub legal_name: String,
     #[serde(rename = "countryCode")]
     pub country_code: String,
+    #[serde(rename = "url")]
+    pub url: String,
 }

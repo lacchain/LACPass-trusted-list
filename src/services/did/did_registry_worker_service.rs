@@ -26,6 +26,7 @@ pub struct DidRegistryWorkerService {
     did: DidModel,
     did_params: DidLac1,
     country_code: String,
+    url: Option<String>,
 }
 
 impl DidRegistryWorkerService {
@@ -37,13 +38,14 @@ impl DidRegistryWorkerService {
                     contract_address: did_params.did_registry_address,
                 };
                 match Self::resolve_country_code_by_public_directory(db, did.id).await {
-                    Ok(cc) => match DidService::new(params).await {
+                    Ok((cc, url)) => match DidService::new(params).await {
                         Ok(did_service) => Ok(Self {
                             did_service,
                             public_key_service: PublicKeyService::new(),
                             did,
                             did_params,
                             country_code: cc,
+                            url,
                         }),
                         Err(e) => return Err(e.into()),
                     },
@@ -59,10 +61,10 @@ impl DidRegistryWorkerService {
     pub async fn resolve_country_code_by_public_directory(
         db: &DatabaseConnection,
         did_id: Uuid,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<(String, Option<String>)> {
         match PdMemberDataInterfaceService::find_one_by_did(db, did_id).await {
             Ok(pd_member_wrap) => match pd_member_wrap {
-                Some(pd_member) => Ok(pd_member.country_code),
+                Some(pd_member) => Ok((pd_member.country_code, pd_member.url)),
                 None => Err(anyhow::anyhow!(format!(
                     "Public Directory member with id {:?} does not exist",
                     did_id
@@ -387,6 +389,7 @@ impl DidRegistryWorkerService {
                                 &valid_to,
                                 Some(is_compromised),
                                 &self.country_code,
+                                self.url.clone(),
                             )
                             .await
                         {

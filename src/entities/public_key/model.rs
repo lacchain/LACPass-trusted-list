@@ -16,6 +16,7 @@ pub struct Model {
     pub is_compromised: Option<bool>,
     pub did_id: Option<Uuid>,
     pub block_number: Option<i64>,
+    pub url: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

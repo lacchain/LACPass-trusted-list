@@ -28,6 +28,7 @@ impl MigrationTrait for Migration {
                             .default(false),
                     )
                     .col(ColumnDef::new(PublicKey::BlockNumber).big_integer().null())
+                    .col(ColumnDef::new(PublicKey::Url).string().null())
                     .index(
                         Index::create()
                             .name("content_hash_did_id")
@@ -58,4 +59,5 @@ enum PublicKey {
     ContentHash,
     Exp,
     IsCompromised,
+    Url,
 }
