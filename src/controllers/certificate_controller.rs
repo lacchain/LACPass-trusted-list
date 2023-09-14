@@ -6,6 +6,7 @@ use sea_orm_rocket::Connection;
 
 use crate::databases::pool::Db;
 use crate::dto::raw::RawData;
+use crate::dto::response::hc1_response_dto::HC1ValidationResponseDto;
 use crate::responses::error_message::ErrorMessage;
 use crate::responses::generic_response::Responses;
 use crate::responses::success_messages::SuccessMessage;
@@ -18,7 +19,7 @@ pub async fn verify_base45_certificate(
     connection: Connection<'_, Db>,
     data: RawData<'_>,
     limits: &Limits,
-) -> Responses<Json<SuccessMessage<bool>>, Json<ErrorMessage<'static>>> {
+) -> Responses<Json<SuccessMessage<HC1ValidationResponseDto>>, Json<ErrorMessage<'static>>> {
     limits.get("data").unwrap_or(1.megabytes());
     let data: &str = data.0;
     let db = connection.into_inner();
