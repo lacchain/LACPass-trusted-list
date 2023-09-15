@@ -532,7 +532,7 @@ pub async fn is_valid_message(
                         None => {
                             let message = format!("No key matched");
                             debug!("TRACE_ID: {}, DESCRIPTION: {}", trace_id, message);
-                            return Err(anyhow::anyhow!(message));
+                            return Ok(false);
                         }
                     }
                 }
