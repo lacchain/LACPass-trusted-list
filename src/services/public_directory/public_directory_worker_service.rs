@@ -411,15 +411,16 @@ impl PublicDirectoryWorkerService {
                     continue;
                 }
             };
-            let mut country_code;
+            let country_code;
             let url: Option<String>;
             match member_data.identification_data {
                 Some(identification_data) => {
                     country_code = identification_data.country_code.to_owned();
                     url = Some(identification_data.url.to_owned());
                     match ALPHA3_TO_ALPHA2.get(&country_code as &str) {
-                        Some(alhpa2_country_code) => {
-                            country_code = alhpa2_country_code.to_string();
+                        Some(_) => {
+                            // country_code = alhpa2_country_code.to_string();
+                            debug!("Country code: '{}' is valid", country_code);
                         }
                         None => {
                             info!(
