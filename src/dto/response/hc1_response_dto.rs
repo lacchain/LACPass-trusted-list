@@ -33,6 +33,12 @@ pub struct Vaccination {
     pub lot: String,
     pub centre: String,
     pub brand: CodeSystem,
+    pub manufacturer: CodeSystem,
+    pub valid_from: String,
+    pub total_doses: u8,
+    pub practitioner: Value,
+    pub disease: CodeSystem,
+    pub next_dose: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]

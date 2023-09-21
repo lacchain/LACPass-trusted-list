@@ -296,7 +296,7 @@ pub fn get_certificate_struct(payload: &Vec<u8>) -> anyhow::Result<Certificate> 
         version,
     })
 }
-pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
+pub fn get_vaccination_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
     let vaccination_map_option = get_map_by_name_from_vec(payload, "vaccination");
     if let None = vaccination_map_option {
         let message = format!("No 'vaccination' map found");
@@ -320,6 +320,22 @@ pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
         return Err(anyhow::anyhow!(message));
     }
     let vaccine_code_system = vaccine_code_system_result.unwrap();
+
+    /////////// manufacturer
+    let manufacturer_map_option = get_child_map_from_cbor_map(&vaccination_map, "manufacturer");
+    if let None = manufacturer_map_option {
+        let message = format!("No 'manufacturer' map found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    };
+    let manufacturer_map = manufacturer_map_option.unwrap();
+    let manufacturer_code_system_result = get_code_system_from_map(&manufacturer_map);
+    if let Err(e) = manufacturer_code_system_result {
+        let message = format!("manufacturer code system error: {}", e);
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let manufacturer_code_system = manufacturer_code_system_result.unwrap();
 
     /////////// country
     let country_map_option = get_child_map_from_cbor_map(&vaccination_map, "country");
@@ -369,6 +385,41 @@ pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
     }
     let brand_code_system = brand_code_system_result.unwrap();
 
+    ////////// practitioner map
+    let practitioner_map_option = get_child_map_from_cbor_map(&vaccination_map, "practitioner");
+    if let None = practitioner_map_option {
+        let message = format!("No 'practitioner' map found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let practitioner_map = practitioner_map_option.unwrap();
+    let practitioner_value_option = get_child_string_from_cbor_map(&practitioner_map, "value");
+    if let None = practitioner_value_option {
+        let message = format!("No 'practitioner value' found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let practitioner_value = practitioner_value_option.unwrap();
+    let practitioner_value_struct = Value {
+        value: practitioner_value,
+    };
+
+    //////// Disease
+    let disease_map_option = get_child_map_from_cbor_map(&vaccination_map, "disease");
+    if let None = disease_map_option {
+        let message = format!("No 'disease' map found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    };
+    let disease_map = disease_map_option.unwrap();
+    let disease_code_system_result = get_code_system_from_map(&disease_map);
+    if let Err(e) = disease_code_system_result {
+        let message = format!("disease code system error: {}", e);
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let disease_code_system = disease_code_system_result.unwrap();
+
     ///////////
     let dose_option = get_child_u8_from_cbor_map(&vaccination_map, "dose");
     if let None = dose_option {
@@ -378,6 +429,14 @@ pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
     }
     let dose = dose_option.unwrap();
 
+    let total_doses_option = get_child_u8_from_cbor_map(&vaccination_map, "totalDoses");
+    if let None = total_doses_option {
+        let message = format!("vaccination error: No 'brand' found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let total_doses = total_doses_option.unwrap();
+
     let date_option = get_child_string_from_cbor_map(&vaccination_map, "date");
     if let None = date_option {
         let message = format!("vaccination error: No 'date' found");
@@ -385,6 +444,14 @@ pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
         return Err(anyhow::anyhow!(message));
     }
     let date = date_option.unwrap();
+
+    let valid_from_option = get_child_string_from_cbor_map(&vaccination_map, "validFrom");
+    if let None = valid_from_option {
+        let message = format!("vaccination error: No 'valid_from' found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let valid_from = valid_from_option.unwrap();
 
     let lot_option = get_child_string_from_cbor_map(&vaccination_map, "lot");
     if let None = lot_option {
@@ -402,6 +469,14 @@ pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
     }
     let centre = centre_option.unwrap();
 
+    let next_dose_option = get_child_string_from_cbor_map(&vaccination_map, "nextDose");
+    if let None = next_dose_option {
+        let message = format!("vaccination error: No 'next_dose' found");
+        debug!("{}", message);
+        return Err(anyhow::anyhow!(message));
+    }
+    let next_dose = next_dose_option.unwrap();
+
     Ok(Vaccination {
         date,
         dose,
@@ -411,11 +486,17 @@ pub fn get_vaccine_struct(payload: &Vec<u8>) -> anyhow::Result<Vaccination> {
         lot,
         centre,
         brand: brand_code_system,
+        manufacturer: manufacturer_code_system,
+        valid_from,
+        total_doses,
+        practitioner: practitioner_value_struct,
+        disease: disease_code_system,
+        next_dose,
     })
 }
 
 pub fn get_hc1_struct(payload: &Vec<u8>) -> anyhow::Result<DdccCoreDataSet> {
-    let vaccination_result = get_vaccine_struct(&payload);
+    let vaccination_result = get_vaccination_struct(&payload);
     if let Err(e) = vaccination_result {
         let message = format!("Error getting vaccine data: {}", e);
         debug!("{}", message);
