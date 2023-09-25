@@ -245,6 +245,10 @@ impl DidRegistryWorkerService {
                         let is_candidate = asse == &"asse" && algorithm == &"jwk";
                         if !is_candidate {
                             info!("{}", error_message);
+                            info!(
+                                "unsupported params are assertion method: {}, algorithm: {}",
+                                asse, algorithm
+                            );
                             continue;
                         }
                     } else {

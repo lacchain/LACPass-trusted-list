@@ -10,7 +10,9 @@ use crate::services::{
     pd_did_member::data_interface::PdDidMemberDataInterfaceService,
     pd_member::data_interface::PdMemberDataInterfaceService,
     public_directory::index::PublicDirectoryService,
-    web3::utils::{get_bytes_from_log, get_string_from_string_in_log, get_u64_from_log},
+    web3::utils::{
+        get_bool_from_log, get_bytes_from_log, get_string_from_string_in_log, get_u64_from_log,
+    },
 };
 
 use super::{country_code::ALPHA3_TO_ALPHA2, member_data::MemberData};
@@ -388,6 +390,7 @@ impl PublicDirectoryWorkerService {
             let current_time;
             let raw_data = get_bytes_from_log(&member_changed_log, "rawData");
             let member_data_string: String;
+            let expires = get_bool_from_log(&member_changed_log, "expires");
             match String::from_utf8(raw_data.clone()) {
                 Ok(v) => member_data_string = v,
                 Err(err) => {
@@ -447,14 +450,18 @@ impl PublicDirectoryWorkerService {
                     return Err(e.into());
                 }
             }
-            if transaction_timestamp == iat && exp <= current_time {
+            if transaction_timestamp == iat && exp <= current_time && expires {
+                // in this case the sweeper read a value later than the expiration time.
                 info!(
                     "Skipping expired member: {} in Public Directory exp {:?}, current time {}",
                     did, exp, current_time
                 );
                 continue;
             }
-            if transaction_timestamp == iat && exp > current_time {
+            if transaction_timestamp == iat && exp > current_time // new member who expires
+                || transaction_timestamp == iat && exp == 0 && !expires
+            // new member who doesn't expire
+            {
                 // issuance case scenario
                 info!("new member was added/updated {} {}", did, member_id);
                 let pd_member_id: Uuid;
