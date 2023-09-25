@@ -279,7 +279,7 @@ impl X509Utils {
     /// given a pem certificate it removes all whitespaces, break lines, header and footer and then decodes this according to base64
     pub fn get_decoded_pem_bytes(pem_cert: String) -> anyhow::Result<Vec<u8>> {
         let formated_pem = X509Utils::trim_pem(pem_cert.to_string());
-        let decoded_base64 = general_purpose::STANDARD_NO_PAD.decode(formated_pem);
+        let decoded_base64 = general_purpose::STANDARD.decode(formated_pem);
         match decoded_base64 {
             Ok(decoded) => Ok(decoded),
             Err(e) => {
@@ -321,30 +321,32 @@ fn get_rsa_pem_test_keys() -> Option<Vec<String>> {
     // call redis and obtain stream of keys in pem format
     let mut pem_keys = Vec::new();
     let lacchain_cert = "-----BEGIN CERTIFICATE-----
-    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
+    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
+    WA==
     -----END CERTIFICATE-----";
     let begin = "BEGIN CERTIFICATE";
     let end = "END CERTIFICATE";
@@ -354,7 +356,7 @@ fn get_rsa_pem_test_keys() -> Option<Vec<String>> {
         .replace("BEGINCERTIFICATE", begin)
         .replace("ENDCERTIFICATE", end);
     let create_cert = "-----BEGIN CERTIFICATE-----
-    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
+    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
     -----END CERTIFICATE-----";
     pem_keys.push(lacchain_cert.to_owned());
     pem_keys.push(create_cert.to_owned());
@@ -372,9 +374,24 @@ mod tests {
         let pem_key = pem_keys.get(0).unwrap();
         match X509Utils::get_expiration_from_pem(pem_key.to_string()) {
             Ok(v) => {
-                assert_eq!(v, 1734792944);
+                println!("Expiration {}", v);
+                assert_eq!(v, 1738870964);
             }
             Err(_) => {
+                assert_eq!(true, false);
+            }
+        }
+    }
+
+    #[test]
+    fn get_decoded_pem_bytes_test() {
+        let pem_keys = get_rsa_pem_test_keys().unwrap();
+        let pem_key = pem_keys.get(1).unwrap();
+        match X509Utils::get_decoded_pem_bytes(pem_key.to_string()) {
+            Ok(_v) => {
+                assert_eq!(true, true);
+            }
+            Err(_e) => {
                 assert_eq!(true, false);
             }
         }
