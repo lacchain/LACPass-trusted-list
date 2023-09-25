@@ -1,0 +1,67 @@
+version: "3"
+services:
+  postgres:
+    image: postgres:latest
+    ports:
+      - "${EXPOSED_CONTAINER_TYPEORM_PORT}:${TYPEORM_PORT}"
+    environment:
+      POSTGRES_PASSWORD: ${TYPEORM_PASSWORD}
+    volumes:
+      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+      - type: bind
+        source: ./pg-prod-db
+        target: /var/lib/postgresql/data
+        volume:
+          nocopy: true
+    networks:
+      - backend
+  redis:
+    image: redis:latest
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "${EXPOSED_CONTAINER_REDIS_PORT}:${REDIS_PORT}"
+    networks:
+      - backend
+  rust-api-base:
+    image: eumb602/lacpass-trusted-list:0.0.1
+    environment:
+      PORT: "${PORT}"
+      JWT_SECRET: "${JWT_SECRET}"
+      TYPEORM_TYPE: "${TYPEORM_TYPE}"
+      TYPEORM_HOST: "${TYPEORM_HOST}"
+      TYPEORM_USERNAME: "${TYPEORM_USERNAME}"
+      TYPEORM_PASSWORD: "{TYPEORM_PASSWORD}"
+      TYPEORM_DATABASE: "${TYPEORM_DATABASE}"
+      TYPEORM_PORT: "${TYPEORM_PORT}"
+      TYPEORM_SYNCHRONIZE: "true"
+      TYPEORM_LOGGING: "true"
+      TYPEORM_MIGRATIONS_RUN: "${TYPEORM_MIGRATIONS_RUN}"
+      REDIS_PORT: "${REDIS_PORT}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_HOST: "${REDIS_HOST}"
+      ACCESS_TOKEN_LIFE: "${ACCESS_TOKEN_LIFE}"
+      RATE_LIMIT_WINDOW: "${RATE_LIMIT_WINDOW}"
+      RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS}"
+      TRUSTED_REGISTRIES: "${TRUSTED_REGISTRIES}"
+      RPC_CONNECTION_648540: "${RPC_CONNECTION_648540}"
+      TRUSTED_REGISTRIES_INDEX_PUBLIC_KEYS_TO_EXPOSE: "${TRUSTED_REGISTRIES_INDEX_PUBLIC_KEYS_TO_EXPOSE}"
+      EXTERNAL_SOURCE_1: "${EXTERNAL_SOURCE_1}"
+      DATABASE_URL: "postgres://${TYPEORM_USERNAME}:${TYPEORM_PASSWORD}@${TYPEORM_HOST}:${TYPEORM_PORT}/${TYPEORM_DATABASE}" #default connection
+    ports:
+      - "${EXPOSED_CONTAINER_SERVER_PORT}:${PORT}"
+    restart: on-failure
+    container_name: lacpass-trusted-list
+    depends_on:
+      - postgres
+      - redis
+    links:
+      - postgres
+      - redis
+    volumes:
+      - ".env.prod:/app/.env.prod"
+    networks:
+      - backend
+networks:
+  backend:
+    name: backend
+    external: true
