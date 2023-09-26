@@ -363,6 +363,34 @@ fn get_rsa_pem_test_keys() -> Option<Vec<String>> {
     Some(pem_keys)
 }
 
+#[allow(dead_code)]
+fn get_p256_pem_test_keys() -> Option<Vec<String>> {
+    // call redis and obtain stream of keys in pem format
+    let mut pem_keys = Vec::new();
+    let lacchain_cert = "-----BEGIN CERTIFICATE-----
+    MIIB8TCCAZagAwIBAgIUVMPmb9VzhvWhfBQLcjG7yS6+Py4wCgYIKoZIzj0EAwQw
+    SDELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRswGQYDVQQKDBJNaW5pc3RyeSBP
+    ZiBIZWFsdGgxDzANBgNVBAMMBkNBLU1vSDAeFw0yMzA5MjYwNDMwMjFaFw0yNTAy
+    MDcwNDMwMjFaME8xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEhMB8GA1UECgwY
+    RFNDIC0gTWluaXN0cnkgb2YgSGVhbHRoMRAwDgYDVQQDDAdEU0MtTW9IMFkwEwYH
+    KoZIzj0CAQYIKoZIzj0DAQcDQgAEWY9cYJMCATULyyMS8WRtZao09HnBotms6ynA
+    eF1dJ471FiGPWp5AjpRmd2pnHnkLHAxbdTEUYhFRwVsowsY4SaNXMFUwCQYDVR0T
+    BAIwADAdBgNVHQ4EFgQU+SB2R0Cff1Vf6Gf9M5k25Nu6JqMwCwYDVR0PBAQDAgeA
+    MBwGA1UdEQQVMBOHBAECAwSCC215LmRucy5uYW1lMAoGCCqGSM49BAMEA0kAMEYC
+    IQD8JKiU8LB+saxWpbjvAwkGghYjKwSL3B9X/VKeZin3EQIhAPDiuOvM9G9W5ger
+    Yz/thKgQfKOtQS9JbgASgQSCeW4i
+    -----END CERTIFICATE-----";
+    let begin = "BEGIN CERTIFICATE";
+    let end = "END CERTIFICATE";
+    let mut lacchain_cert = lacchain_cert.replace("\n", "");
+    lacchain_cert.retain(|c| !c.is_whitespace());
+    let lacchain_cert = lacchain_cert
+        .replace("BEGINCERTIFICATE", begin)
+        .replace("ENDCERTIFICATE", end);
+    pem_keys.push(lacchain_cert.to_owned());
+    Some(pem_keys)
+}
+
 #[cfg(test)]
 mod tests {
     // use std::println;
@@ -384,9 +412,22 @@ mod tests {
     }
 
     #[test]
-    fn get_decoded_pem_bytes_test() {
+    fn get_decoded_pem_bytes_rsa_test() {
         let pem_keys = get_rsa_pem_test_keys().unwrap();
         let pem_key = pem_keys.get(1).unwrap();
+        match X509Utils::get_decoded_pem_bytes(pem_key.to_string()) {
+            Ok(_v) => {
+                assert_eq!(true, true);
+            }
+            Err(_e) => {
+                assert_eq!(true, false);
+            }
+        }
+    }
+    #[test]
+    fn get_decoded_pem_bytes_p256_test() {
+        let pem_keys = get_p256_pem_test_keys().unwrap();
+        let pem_key = pem_keys.get(0).unwrap();
         match X509Utils::get_decoded_pem_bytes(pem_key.to_string()) {
             Ok(_v) => {
                 assert_eq!(true, true);
