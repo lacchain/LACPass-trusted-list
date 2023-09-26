@@ -14,12 +14,17 @@ pub struct HC1ValidationResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct DdccCoreDataSet {
     pub vaccination: Vaccination,
-    pub resource_type: String,
-    pub birth_date: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub birth_date: Option<String>,
     pub name: String,
-    pub identifier: String,
-    pub sex: String,
-    pub certificate: Certificate,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sex: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub certificate: Option<Certificate>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
@@ -29,16 +34,24 @@ pub struct Vaccination {
     pub dose: u8,
     pub vaccine: CodeSystem,
     pub country: CodeSystem,
-    pub maholder: CodeSystem,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub maholder: Option<CodeSystem>,
     pub lot: String,
-    pub centre: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre: Option<String>,
     pub brand: CodeSystem,
-    pub manufacturer: CodeSystem,
-    pub valid_from: String,
-    pub total_doses: u8,
-    pub practitioner: Value,
-    pub disease: CodeSystem,
-    pub next_dose: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<CodeSystem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_doses: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub practitioner: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disease: Option<CodeSystem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_dose: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
@@ -46,7 +59,7 @@ pub struct Vaccination {
 pub struct Certificate {
     pub hcid: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub period: Option<String>,
+    pub period: Option<Period>,
     pub issuer: Identifier,
     pub version: String,
 }
@@ -54,8 +67,10 @@ pub struct Certificate {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeSystem {
-    pub code: String,
-    pub system: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
@@ -66,5 +81,14 @@ pub struct Identifier {
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct Value {
-    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+pub struct Period {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<String>,
 }
