@@ -24,11 +24,16 @@ use crate::config::log_config::get_envs;
 use crate::logger_config::setup_logger;
 
 static CONTROLLER_TRUSTED_REGISTRY: OnceCell<TrustedRegistry> = OnceCell::new();
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[launch]
 async fn rocket() -> _ {
     let envs = get_envs().await.unwrap();
     setup_logger(true, envs.value_of("log-conf"));
+    info!(
+        "<<<<<<<<<<<<<<<<<<<< LACPASS TRUSTED LIST VERSION: {} >>>>>>>>>>>>>>>>>>>>>",
+        VERSION
+    );
     match CONTROLLER_TRUSTED_REGISTRY.set(TrustedRegistries::get_trusted_registry_by_index()) {
         Ok(_) => {}
         Err(err) => {
