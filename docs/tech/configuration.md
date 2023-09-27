@@ -64,10 +64,6 @@ docker network create backend
 ```
 
 ```
-mkdir pg-prod-db
-```
-
-```
 docker-compose -f docker-compose.yml --env-file .env.prod build
 ```
 

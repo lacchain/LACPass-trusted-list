@@ -8,11 +8,7 @@ services:
       POSTGRES_PASSWORD: ${TYPEORM_PASSWORD}
     volumes:
       - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
-      - type: bind
-        source: ./pg-prod-db
-        target: /var/lib/postgresql/data
-        volume:
-          nocopy: true
+      - ./postgres-data:/var/lib/postgresql/data
     networks:
       - backend
   redis:
@@ -23,7 +19,7 @@ services:
     networks:
       - backend
   rust-api-base:
-    image: eumb602/lacpass-trusted-list:0.0.1
+    image: eumb602/lacpass-trusted-list:latest
     environment:
       PORT: "${PORT}"
       JWT_SECRET: "${JWT_SECRET}"
