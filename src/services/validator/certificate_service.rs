@@ -619,10 +619,13 @@ pub async fn verify_base45(
 
                     let signer_country_code_option = get_signer_country_code(&payload);
                     if let None = signer_country_code_option {
-                        let message = "country code not found";
+                        let message = "signer country code not found";
                         debug!("TRACE_ID: {}, DESCRIPTION ({})", trace_id, message);
-                        return Responses::BadRequest(Json::from(ErrorMessage {
-                            message,
+                        return Responses::Sucess(Json::from(SuccessMessage {
+                            data: HC1ValidationResponseDto {
+                                is_valid: false,
+                                ddcc_core_data_set,
+                            },
                             trace_id: trace_id.to_string(),
                         }));
                     }
