@@ -209,11 +209,12 @@ impl X509Utils {
                                                 },
                                                 Ok(xy) => {
                                                     let mut key = keys::CoseKey::new();
-                                                    key.kty(keys::P_256);
+                                                    key.kty(keys::EC2);
                                                     key.x(xy.get(0).unwrap().to_owned());
                                                     key.y(xy.get(1).unwrap().to_owned());
                                                     key.alg(*signing_alg);
                                                     key.key_ops(vec![keys::KEY_OPS_VERIFY]);
+                                                    key.crv(keys::P_256);
                                                     return Some(key);
                                                 },
                                             }
@@ -402,7 +403,7 @@ mod tests {
         let pem_key = pem_keys.get(0).unwrap();
         match X509Utils::get_expiration_from_pem(pem_key.to_string()) {
             Ok(v) => {
-                println!("Expiration {}", v);
+                // println!("Expiration {}", v);
                 assert_eq!(v, 1738870964);
             }
             Err(_) => {
