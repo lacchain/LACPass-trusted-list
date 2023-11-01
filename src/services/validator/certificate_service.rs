@@ -6,7 +6,10 @@ use crate::{
     responses::{
         error_message::ErrorMessage, generic_response::Responses, success_messages::SuccessMessage,
     },
-    services::{public_key::data_interface::PublicKeyService, x509::x509_utils::X509Utils},
+    services::{
+        public_directory::country_code::ALPHA3_TO_ALPHA2,
+        public_key::data_interface::PublicKeyService, x509::x509_utils::X509Utils,
+    },
 };
 use base45::decode;
 use cbor::{Cbor, Decoder};
@@ -136,6 +139,22 @@ pub fn get_child_u8_from_cbor_map(cbor_map: &HashMap<String, Cbor>, child: &str)
             return None;
         }
     }
+}
+
+pub fn get_signer_country_code(payload: &Vec<u8>) -> Option<String> {
+    let mut d = Decoder::from_bytes(payload.clone());
+    d.items().into_iter().find_map(|v| match v {
+        Ok(c) => match c {
+            cbor::Cbor::Unicode(el) => match ALPHA3_TO_ALPHA2.get(&el) {
+                Some(_) => return Some(el),
+                None => return None,
+            },
+            _ => None,
+        },
+        Err(_) => {
+            return None;
+        }
+    })
 }
 
 pub fn get_string_by_name_from_vec(payload: &Vec<u8>, child_name: &str) -> Option<String> {
@@ -579,6 +598,9 @@ pub async fn verify_base45(
 
             match cose_message.init_decoder(None) {
                 Ok(_) => {
+                    // info!("{:?}", cose_message.header.kid); // TODO: implement
+                    // info!("{:?}", cose_message.header.protected); // data
+
                     let payload = cose_message.payload.clone();
                     let hc1_result = get_hc1_struct(&payload);
                     if let Err(e) = hc1_result {
@@ -595,7 +617,8 @@ pub async fn verify_base45(
                     let ddcc_core_data_set = hc1_result.unwrap();
                     info!("hc1 struct: {:?}", ddcc_core_data_set);
 
-                    if let None = ddcc_core_data_set.vaccination.country.code.clone() {
+                    let signer_country_code_option = get_signer_country_code(&payload);
+                    if let None = signer_country_code_option {
                         let message = "country code not found";
                         debug!("TRACE_ID: {}, DESCRIPTION ({})", trace_id, message);
                         return Responses::BadRequest(Json::from(ErrorMessage {
@@ -603,11 +626,11 @@ pub async fn verify_base45(
                             trace_id: trace_id.to_string(),
                         }));
                     }
-
-                    let country_code = ddcc_core_data_set.vaccination.country.code.clone().unwrap();
+                    let signer_country_code = signer_country_code_option.unwrap();
 
                     let is_valid_result =
-                        is_valid_message(db, &mut cose_message, country_code, trace_id).await;
+                        is_valid_message(db, &mut cose_message, signer_country_code, trace_id)
+                            .await;
                     if let Err(e) = is_valid_result {
                         let message = "message validation failed";
                         debug!(

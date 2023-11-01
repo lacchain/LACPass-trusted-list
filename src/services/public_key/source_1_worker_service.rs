@@ -102,15 +102,14 @@ impl ExternalSource1WorkerService {
                             }
                         })
                         .filter_map(|(jwk, key)|  {
-                            match country_code::ALPHA2_TO_ALPHA3.get(&key.country) {
-                                Some(_) => {},
-                                None => {
-                                    let message = format!("Got error when validating country code {}", 
-                                    key.country.clone());
-                                    debug!("{}", message);
-                                    return None;
-                                },
+                            let alpha3_country_code_option = country_code::ALPHA2_TO_ALPHA3.get(&key.country);
+                            if let None = alpha3_country_code_option {
+                                let message = format!("Got error when validating country code {}", 
+                                key.country.clone());
+                                debug!("{}", message);
+                                return None;
                             }
+                            let alpha3_country_code = alpha3_country_code_option.unwrap().to_string();
                             // extract pem hash
                             let mut h = Sha3::keccak256();
                             match jwk.x5c.clone() {
@@ -135,7 +134,7 @@ impl ExternalSource1WorkerService {
                                                 let jwk_bytes = jwk_string.as_bytes();
 
                                                 match X509Utils::get_expiration_from_pem(pem_candidate.to_string()) {
-                                                    Ok(expiration) => Some((content_hash, jwk_bytes.to_owned(), expiration, key.clone().country, Some(key.url.clone()) )),
+                                                    Ok(expiration) => Some((content_hash, jwk_bytes.to_owned(), expiration, alpha3_country_code, Some(key.url.clone()) )),
                                                     Err(e) => {
                                                         let message = format!(
                                                             "Error while getting 'Expiration' from pem - for country {:?}; error was: {:?}",
@@ -145,8 +144,6 @@ impl ExternalSource1WorkerService {
                                                         return None;
                                                     },
                                                 }
-
-                                                // return Some((jwk_bytes.to_owned(), key, content_hash));
                                             }
                                             Err(e) => {
                                                 debug!(

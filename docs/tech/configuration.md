@@ -84,7 +84,7 @@ The following commands will `build and run` a Docker image ready for production 
 #### Build Docker image
 
 ```
-docker build -f Dockerfile.prod -t lacpass-trusted-list .
+docker build -f Dockerfile.prod -t lacpass-trusted-list:XXXX .
 ```
 
 #### Run docker image (you need to add .env file as param)
